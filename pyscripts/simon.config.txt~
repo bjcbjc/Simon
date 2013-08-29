@@ -1,0 +1,81 @@
+
+#allelic-expression read counts filtered by VCF
+pileupcount.DNA:
+cmd	pileupCount
+pyprog	pileupCount.py
+programpath	/nethome/bjchen/Projects/Simon/
+inputpath	/nethome/bjchen/Projects/Simon/DNA/bam/
+outputpath	/nethome/bjchen/Projects/Simon/DnaCount/
+-tmpdir	/scratch/
+-f	/data/NYGC/Resources/Indexes/bwa/human_g1k_v37.fasta
+-r	1; 10
+-d	200000
+-q	0; 50
+stranded	True
+prefix	pcount
+bam	=sample
+sample	132540-10-N.dedup.realigned.recal.bam; 132540-1-T.dedup.realigned.recal.bam; 138381-2-T.dedup.realigned.recal.bam; 138381-4-N.dedup.realigned.recal.bam
+locfilepath	/nethome/bjchen/Projects/Simon/DNA/vcf/
+locfile	132540-10N-132540-1T.mutect-sniper-varscan.union.vcf; 132540-10N-132540-1T.mutect-sniper-varscan.union.vcf; 138381-4N-138381-2T.mutect-sniper-varscan.union.vcf; 138381-4N-138381-2T.mutect-sniper-varscan.union.vcf
+overwrite	True
+mem	4G
+time	24::
+
+
+
+#allelic-expression read counts filtered by VCF
+pileupcount:
+cmd	pileupCount
+pyprog	pileupCount.py
+programpath	/nethome/bjchen/Projects/Simon/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/
+outputpath	/nethome/bjchen/Projects/Simon/RnaCount/
+-tmpdir	/scratch/
+-f	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+-r	1; 10
+-d	10000; 20000
+-q	0; 50
+stranded	True
+prefix	pcount
+bam	=sample
+sample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.bam
+locfilepath	/nethome/bjchen/Projects/Simon/DNA/vcf/
+locfile	132540-10N-132540-1T.mutect-sniper-varscan.union.vcf; 132540-10N-132540-1T.mutect-sniper-varscan.union.vcf; 138381-4N-138381-2T.mutect-sniper-varscan.union.vcf; 138381-4N-138381-2T.mutect-sniper-varscan.union.vcf
+overwrite	True
+mem	4G
+time	24::
+
+
+
+#picard QC: RNASeqMetrics, MultipleMetrics, LibraryComplexity, GCBias
+picard.GC:
+cmd	picardQC
+runmetric	CollectGcBiasMetrics.jar
+TMP_DIR	=/scratch/
+REFERENCE_SEQUENCE	=/data/NYGC/Resources/Indexes/STAR/Genome_hg19/h37_hg19_chrOnly.fa
+programpath	/data/NYGC/Software/picard-tools/picard-tools-1.83/
+inputpath	/nethome/bjchen/Projects/Simon/
+outputpath	/nethome/bjchen/Projects/Simon/GCqc/
+prefix	picardQC
+bam	=sample
+sample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.bam
+overwrite	True
+mem	20G
+time	24::
+
+picard.GC.WGS:
+cmd	picardQC
+runmetric	CollectGcBiasMetrics.jar
+TMP_DIR	=/scratch/
+REFERENCE_SEQUENCE	=/data/NYGC/Resources/Indexes/bwa/human_g1k_v37.fasta
+programpath	/data/NYGC/Software/picard-tools/picard-tools-1.83/
+inputpath	/data/analysis/SimonSM/Project_SIM_01045_PCRFree_WGS/
+outputpath	/nethome/bjchen/Projects/Simon/GCqc/
+prefix	picardQC
+bam	=sample
+sample	Sample_142646-1-2-T/analysis/142646-1-2-T.dedup.realigned.recal.bam; Sample_138381-4-N/analysis/138381-4-N.dedup.realigned.recal.bam; Sample_132540-1-T/analysis/132540-1-T.dedup.realigned.recal.bam; Sample_104024-T/analysis/104024-T.dedup.realigned.recal.bam; Sample_138381-2-T/analysis/138381-2-T.dedup.realigned.recal.bam; Sample_142646-22-N/analysis/142646-22-N.dedup.realigned.recal.bam; Sample_134376-3-N/analysis/134376-3-N.dedup.realigned.recal.bam; Sample_134376-1-T/analysis/134376-1-T.dedup.realigned.recal.bam; Sample_132540-10-N/analysis/132540-10-N.dedup.realigned.recal.bam; Sample_104024-N/analysis/104024-N.dedup.realigned.recal.bam
+overwrite	True
+mem	20G
+time	24::
+
+
