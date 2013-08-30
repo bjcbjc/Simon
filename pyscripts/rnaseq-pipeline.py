@@ -1,12 +1,14 @@
 
 from sys import argv
 from os import system
+from string import Template
 import os.path
 import copy
 import cmdGenerator
 import jobFactory
 import configRobot
 import itertools
+import re
 
 
 
@@ -19,6 +21,185 @@ def getAvailableParas():
     for l in t:
         tb[ l[0] ] = l[1:]
     return tb
+
+
+def varCall_nontumorspecific(cmdset, runmode='test'):
+if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+
+    cmdset = configRobot.makeParasList(cmdset, ['sample'])
+    cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
+    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'), create=createpath)
+    programpath = cmdGenerator.checkPath(cmdset.pop('programpath'))
+
+    caller = cmdset.pop('caller')
+    callertag = cmdset.pop('callertag').lower()
+    bam = cmdset.pop('bam')
+    sample = cmdset.pop('sample') #list of samples
+
+    if 'iterparas' in cmdset.keys():
+        iterparas = cmdset.pop('iterparas')
+    else:
+        iterparas = ["''"]
+
+    if 'specifyname' in cmdset.keys():
+        cmdset = configRobot.makeParasList(cmdset, ['specifyname'])
+        specifyname = cmdset.popParas(cmdset, ['specifyname'])
+        if len(specifyname) != length(sample):
+            print '#specifyname should be the same as #sample lists'
+            exit()
+    else:
+        specifyname = []
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    if '.jar' in caller:
+        callcmd = 'java -Xmx%dg '%(int(mem.replace('G',''))-1) 
+        if '-Djava.io.tmpdir' in cmdset.keys():
+            callcmd = callcmd + ' -Djava.io.tmpdir%s '%(configRobot.popParas(cmdset, ['-Djava.io.tmpdir']))
+        callcmd = callcmd + ' -jar ' + programpath + caller
+    else:
+        callcmd = programpath + caller
+
+    for sampidx in range(len(sample)):
+        if bam == '=sample':
+            sampleinputpath = inputpath
+            sampleoutputpath = outputpath
+        else:
+            sampleinputpath = inputpath + sample + '/'
+            sampleoutputpath = outputpath + sample + '/'
+
+        sampletmpoutpath = tmpoutpath + prefix + '/'
+
+        for addpara in iterparas:
+            paraset = copy.deepcopy(cmdset)
+            if len(specifyname) == 0:
+                jobprefix = prefix + '_' + re.sub('[,\s]+', '_', sample[sampidx])
+                if len(jobprefix) > 60:
+                    print 'jobprefix is too long, use specifyname instead'
+                    exit()
+            else:
+                jobprefix = prefix + specifyname[sampidx]
+
+            if addpara != "''": 
+                paraset[addpara] = ''
+                jobprefix = jobprefix + '_' + addpara.replace(' ','')
+
+##########################
+            CMDs = []
+            if 'toShell' in paraset.keys():
+                CMDs.append( cmdGenerator.formatCmd( paraset.pop('toShell') ) )
+
+            CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+
+            CMDs.append( cmdGenerator.formatCmd( callcmd, paraset, template.substitute(tempset) ) )
+
+            CMDs.append( cmdGenerator.formatCmd( 'mv %s* %s'%(tempset['outputpath']+tempset['outbase'], sampleoutputpath) )) 
+            CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, sampleoutputpath)) )
+
+            jobmanager.createJob(jobprefix, CMDs, outpath = sampleoutputpath, outfn = jobprefix, trackcmd=False)
+            if callcmd == '' and 'callcmd' in tempset.keys():
+                callcmd = tempset['callcmd']
+    return jobmanager
+
+
+
+def varCall(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+
+    #caller sample and output format string
+    #flag: options before template or not
+    callertb = {'mutect': [Template(' --input_file:normal $inputpath$normalsample --input_file:tumor $inputpath$tumorsample --out $outputpath$outbase.txt --coverage_file $outputpath$outbase.coverage.wig.txt '), False], 'varscan': [Template('samtools mpileup -B -f $reference -q $minq $inputpath$normalsample > $outputpath$normalsample.pileup \n\nsamtools mpileup -B -f $reference -q $minq $inputpath$tumorsample > $outputpath$tumorsample.pileup\n\n$callcmd somatic $outputpath$normalsample.pileup $outputpath$tumorsample.pileup --output-snp $outputpath$outbase.snv --output-indel $outputpath$outbase.indel --output-vcf '), False], 'sniper': [Template(' $inputpath$tumorsample $inputpath$normalsample $outputpath$outbase.vcf '), True] }
+
+    cmdset = configRobot.makeParasList(cmdset, ['normalsample', 'tumorsample'])
+    cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
+    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'), create=createpath)
+    programpath = cmdGenerator.checkPath(cmdset.pop('programpath'))
+
+    caller = cmdset.pop('caller')
+    callertag = cmdset.pop('callertag').lower()
+    bam = cmdset.pop('bam')
+    normalsample = cmdset.pop('normalsample')
+    tumorsample = cmdset.pop('tumorsample')
+
+    if 'iterparas' in cmdset.keys():
+        iterparas = cmdset.pop('iterparas')
+    else:
+        iterparas = ["''"]
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    if '.jar' in caller:
+        callcmd = 'java -Xmx%dg '%(int(mem.replace('G',''))-1) 
+        if '-Djava.io.tmpdir' in cmdset.keys():
+            callcmd = callcmd + ' -Djava.io.tmpdir%s '%(configRobot.popParas(cmdset, ['-Djava.io.tmpdir']))
+        callcmd = callcmd + ' -jar ' + programpath + caller
+    else:
+        callcmd = programpath + caller
+
+    template = callertb[callertag][0]
+    optionsbeforetemp = callertb[callertag][1]
+
+    for sampidx in range(len(normalsample)):
+        if bam == '=sample':
+            sampleinputpath = inputpath
+            sampleoutputpath = outputpath
+        else:
+            sampleinputpath = inputpath + sample + '/'
+            sampleoutputpath = outputpath + sample + '/'
+
+        sampletmpoutpath = tmpoutpath + prefix + '/'
+
+        for addpara in iterparas:
+            paraset = copy.deepcopy(cmdset)
+            tempset = {}
+            tempset['inputpath'] = sampleinputpath
+            tempset['outputpath'] = sampletmpoutpath
+            tempset['normalsample'] = normalsample[sampidx]
+            tempset['tumorsample'] = tumorsample[sampidx]
+            if callertag == 'varscan':
+                tempset['reference'] = paraset.pop('-f')
+                tempset['minq'] = paraset.pop('-q')
+                tempset['callcmd'] = callcmd
+                callcmd = ''
+            jobprefix = prefix + '_' + normalsample[sampidx] + '_' + tumorsample[sampidx]
+
+            if addpara != "''": 
+                paraset[addpara] = ''
+                jobprefix = jobprefix + '_' + addpara.replace(' ','')
+
+            tempset['outbase'] = jobprefix + '.' + callertag
+
+            CMDs = []
+            if 'toShell' in paraset.keys():
+                CMDs.append( cmdGenerator.formatCmd( paraset.pop('toShell') ) )
+
+            CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+
+            if optionsbeforetemp:
+                CMDs.append( cmdGenerator.formatCmd( callcmd, paraset, template.substitute(tempset) ) )
+            else:
+                CMDs.append( cmdGenerator.formatCmd( callcmd, template.substitute(tempset), paraset ) )
+
+            CMDs.append( cmdGenerator.formatCmd( 'mv %s* %s'%(tempset['outputpath']+tempset['outbase'], sampleoutputpath) )) 
+            CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, sampleoutputpath)) )
+
+            jobmanager.createJob(jobprefix, CMDs, outpath = sampleoutputpath, outfn = jobprefix, trackcmd=False)
+            if callcmd == '' and 'callcmd' in tempset.keys():
+                callcmd = tempset['callcmd']
+    return jobmanager
+
+
+
 
 def pileupCount(cmdset, runmode='test'):
     if runmode == 'test':
@@ -499,29 +680,43 @@ def markDup(cmdset, runmode='test'):
     else:
         createpath = True
 
-    cmd, mem, time, samples, prefix = configRobot.popParas(cmdset,['cmd', 'mem', 'time', 'sample', 'prefix'])
+    cmd, mem, time, samples, prefix, shellsetup = configRobot.popParas(cmdset,['cmd', 'mem', 'time', 'sample', 'prefix','toShell'])
     inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'), create=createpath)
     programpath = cmdGenerator.checkPath(cmdset.pop('programpath'))
     bam = configRobot.popParas(cmdset, 'bam')
     jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
 
     javacmd = 'java -Xmx%dg -jar'%(int(mem.replace('G',''))-1)
     mdupjar = 'MarkDuplicates.jar'
-    idxcmd = 'samtools index'
 
     for sample in samples:
         jobname = prefix + '_' + sample
         paraset = copy.deepcopy(cmdset)
-        paraset['INPUT'] = '=%s/%s'%(inputpath + sample, bam)
-        paraset['OUTPUT'] = paraset['INPUT'].replace('.bam', '.mdup.bam')
-        paraset['METRICS_FILE'] = '=%s/%s'%(inputpath + sample, prefix + '_mdupmetrics.txt')
+        if bam == '=sample':
+            sampleinputpath = inputpath
+            sampletmpoutpath = tmpoutpath
+            sampleoutputpath = outputpath
+            bamfile = sample
+        else:
+            sampleinputpath = inputpath + sample
+            sampletmpoutpath = cmdGenerator.checkPath(tmpoutpath + sample, create=createpath)
+            sampleoutputpath = cmdGenerator.checkPath(outputpath + sample, create=createpath)
+            bamfile = bam
+
+        paraset['INPUT'] = '=%s/%s'%(sampleinputpath, bamfile)
+        paraset['OUTPUT'] = '=%s/%s'%(sampletmpoutpath, bamfile.replace('.bam', '.mdup.bam'))
+        paraset['METRICS_FILE'] = '=%s/%s'%(sampletmpoutpath, bamfile.replace('.bam', '.mdup.metrics.txt'))
         paraset = configRobot.validParas(paraset, availParas[mdupjar])
         CMDs = []
-        CMDs.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
+        
+        CMDs.append( cmdGenerator.formatCmd( shellsetup ) )
         CMDs.append( cmdGenerator.formatCmd(javacmd, programpath+mdupjar, paraset) )
-        CMDs.append( cmdGenerator.formatCmd(idxcmd, paraset['OUTPUT'].strip('=')) )
-        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, inputpath+sample)) )
-        jobmanager.createJob(jobname, CMDs, outpath = inputpath+sample, outfn = jobname)
+        CMDs.append( cmdGenerator.formatCmd( 'mv %s %s'%(paraset['OUTPUT'].replace('=',''), paraset['OUTPUT'].replace(sampletmpoutpath, sampleoutputpath).replace('=','') )))
+        CMDs.append( cmdGenerator.formatCmd( 'mv %s %s'%(paraset['METRICS_FILE'].replace('=',''), paraset['METRICS_FILE'].replace(sampletmpoutpath, sampleoutputpath).replace('=','') )))
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, sampleoutputpath)) )
+        jobmanager.createJob(jobname, CMDs, outpath = sampleinputpath, outfn = jobname)
     return jobmanager
 
 

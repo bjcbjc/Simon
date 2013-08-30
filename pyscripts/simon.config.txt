@@ -1,4 +1,100 @@
 
+
+#call variants with RNA data
+varCall.mutect:
+cmd	varCall
+callertag	mutect
+caller	muTect-1.1.4/muTect-1.1.4.jar
+programpath	/data/NYGC/Software/muTect/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+tmpoutpath	/scratch/
+prefix	mutect
+--baqGapOpenPenalty	40
+--num_threads	2
+--reference_sequence	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+-Djava.io.tmpdir	=/scratch/
+--analysis_type	MuTect
+--dbsnp	/data/NYGC/Resources/muTect/dbsnp_132_b37.leftAligned.vcf
+--cosmic	/data/NYGC/Resources/muTect/hg19_cosmic_v54_120711.vcf
+--intervals	/data/NYGC/Resources/muTect/GRCh37_64.chrom.intervals
+bam	=sample
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted..mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam
+tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
+overwrite	True
+mem	24G
+time	24::
+
+#VarScan call for RNA
+varCall.varscan:
+cmd	varCall
+toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19
+callertag	varscan
+caller	VarScan.v2.3.6/VarScan.v2.3.6.jar
+programpath	/data/NYGC/Software/VarScan/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+tmpoutpath	/scratch/
+prefix	varscan
+-f	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+-q	50
+-Djava.io.tmpdir	=/scratch/
+bam	=sample
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam
+tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
+overwrite	True
+mem	27G
+time	24::
+
+
+#Sniper call for RNA
+varCall.sniper:
+cmd	varCall
+callertag	sniper
+caller	SomaticSniper-1.0.2/bin/bam-somaticsniper
+programpath	/data/NYGC/Software/SomaticSniper/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+tmpoutpath	/scratch/
+prefix	sniper
+-f	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+-q	50
+-F	vcf
+iterparas	''; -J -s 0.01
+bam	=sample
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam
+tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
+overwrite	True
+mem	24G
+time	24::
+
+
+
+
+#remove duplicate reads in RNA bam
+markDup:
+cmd	markDup
+toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19
+TMP_DIR	=/scratch/
+REFERENCE_SEQUENCE	=/data/NYGC/Resources/Indexes/STAR/Genome_hg19/h37_hg19_chrOnly.fa
+REMOVE_DUPLICATES	=false
+VALIDATION_STRINGENCY	=SILENT
+CREATE_INDEX	=true
+programpath	/data/NYGC/Software/picard-tools/picard-tools-1.83/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/
+prefix	mdup
+bam	=sample
+sample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.bam
+tmpoutpath	/scratch/
+overwrite	True
+mem	12G
+time	24::
+
+
+
+
+
 #allelic-expression read counts filtered by VCF
 pileupcount.DNA:
 cmd	pileupCount
