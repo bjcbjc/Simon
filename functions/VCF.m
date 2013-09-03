@@ -23,15 +23,24 @@ classdef VCF < dynamicprops
     end
     
     methods
-        function obj = VCF(fn, parseFormat, pyformatfiledir)
+        function obj = VCF(fn, parseFormat, pyformatfiledir, goodVCF)
             if nargin >= 2
                 obj.parseFormat = parseFormat;
             end
             if nargin == 3
                 obj.pyformatfiledir = pyformatfiledir;
-            end            
+            end           
+            if nargin < 4
+                goodVCF = false;
+            end
             
             obj.filename = fn;
+            
+            if goodVCF
+                obj = obj.readGoodVCF();
+                obj.cleanup();
+                return;
+            end
             
             header = obj.obtainHeader();
             
@@ -73,7 +82,7 @@ classdef VCF < dynamicprops
             obj.cleanup();
         end
         
-        function header = obtainHeader(obj)
+        function [header, l] = obtainHeader(obj)
             header = {};
             f = fopen(obj.filename, 'r');
             l = fgetl(f);
@@ -120,7 +129,7 @@ classdef VCF < dynamicprops
             obj.variantAttr_cell(:, colidx_cell~=0) = text(:, colidx_cell(colidx_cell~=0));
             
             [~, colidx_mtx] = ismember(obj.attrName_mtx, h);
-            obj.variantAttr_mtx(:, colidx_mtx~=0) = str2double(text(:, colidx_mtx(colidx_mtx~=0)));
+            obj.variantAttr_mtx(:, colidx_mtx~=0) = str2double_fast(text(:, colidx_mtx(colidx_mtx~=0)));
                         
             idx = strcmp(h, 'INFO');
             %t = regexp(s, ';([\w\.]+)=*([\w\.\,\(\)\|\-]*)|^([\w\.]+)=*([\w\.\,\(\)\|\-]*)', 'tokens');
@@ -145,7 +154,7 @@ classdef VCF < dynamicprops
                    vi = find(vi);
                    singleval = cellfun(@isempty, strfind(obj.variantAttr_cell(vi, fdidx), ','));
                    obj.variantAttr_cell(vi(singleval), fdidx) = ...
-                       num2cell(str2double(obj.variantAttr_cell(vi(singleval), fdidx)));
+                       num2cell(str2double_fast(obj.variantAttr_cell(vi(singleval), fdidx)));
                    obj.variantAttr_cell(vi(~singleval), fdidx) = ...
                        cellfun(@str2num, obj.variantAttr_cell(vi(~singleval), fdidx), 'unif', 0);
                end
@@ -163,7 +172,7 @@ classdef VCF < dynamicprops
                         obj.attrName_mtx{fdidx},obj.attrName_mtx{fdidx},obj.attrName_mtx{fdidx}), 'tokens', 'once');
                     vi = ~cellfun(@isempty, val);
                     val(vi) = cellfun(@(x) x{1}, val(vi), 'unif', 0); %flat nested cell arrays
-                    obj.variantAttr_mtx(vi, fdidx) = str2double( val(vi));
+                    obj.variantAttr_mtx(vi, fdidx) = str2double_fast( val(vi));
                 end
             end    
             toc;
@@ -320,7 +329,7 @@ classdef VCF < dynamicprops
             rowidx = ismember(formatFieldTable(:,3), {'Float','Integer'});
             if any(rowidx)
                 formatFieldStruct.numField = formatFieldTable(rowidx, 1);
-                formatFieldStruct.numFieldDim = str2double(formatFieldTable(rowidx, 2));
+                formatFieldStruct.numFieldDim = str2double_fast(formatFieldTable(rowidx, 2));
                 formatFieldStruct.numFieldDim( strcmp(formatFieldTable(rowidx,2), 'A') ) = obj.maxnalt;
                 formatFieldStruct.numFieldDim( ~cellfun(@isempty, strfind(lower(formatFieldTable(rowidx,4)), 'allelic depth') ) ) = obj.maxnalt + 1;
             end
@@ -328,7 +337,7 @@ classdef VCF < dynamicprops
             rowidx = ismember(formatFieldTable(:,3), {'Flag'});
             if any(rowidx)
                 formatFieldStruct.boolField = formatFieldTable(rowidx, 1);
-                formatFieldStruct.boolFieldDim = str2double(formatFieldTable(rowidx, 2));
+                formatFieldStruct.boolFieldDim = str2double_fast(formatFieldTable(rowidx, 2));
                 formatFieldStruct.boolFieldDim( strcmp(formatFieldTable(rowidx,2), 'A') ) = obj.maxnalt;
                 formatFieldStruct.boolFieldDim( ~cellfun(@isempty, strfind(lower(formatFieldTable(rowidx,4)), 'allelic depth') ) ) = obj.maxnalt + 1;
             end
@@ -418,7 +427,128 @@ classdef VCF < dynamicprops
 %             end
         end
         
-        
+        function obj = readGoodVCF(obj)
+            %FORMAT string is the same for all the records
+            [header, varExample] = obj.obtainHeader();
+            obj.parseHeader(header);
+            fields = textscan(varExample, '%s', 'delimiter', sprintf('\t'));
+            fields = fields{1};
+            nsample = length(fields) - 9;
+            obj.sample = fields(10:end);
+            
+            varformatstr = '%s %f %s %s %s %f %s %s'; %chrom, pos, id, ref, alt, qual, filter, info            
+            formatfields = textscan(fields{9}, '%s', 'delimiter', ':');            
+            formatfields = formatfields{1};
+            nformatfields = length(formatfields);
+            [~, formatidx] = ismember(formatfields, obj.desc(:,1));            
+            for i = 1:nformatfields
+                varformatstr = strcat(varformatstr, '%s');
+            end
+            sampleformatstr = '';
+            for i = 1:nformatfields
+                if ismember(lower(obj.desc(formatidx(i), 3)), {'float', 'integer'}) && ...
+                    strcmp(obj.desc(formatidx(i), 2), '1')
+                    sampleformatstr = strcat(sampleformatstr, '%f');
+                else
+                    sampleformatstr = strcat(sampleformatstr, '%s');
+                end
+            end
+            varformatstr = strcat(varformatstr, repmat(sampleformatstr, 1, nsample));
+            fprintf('read file\n');
+            tic;
+            f = fopen(obj.filename);
+            d = textscan(f, varformatstr, 'delimiter',sprintf('\t:'), 'headerlines', length(header), 'treatasempty', '.');
+            fclose(f);
+            toc;
+            
+            nvariant = length(d{1});
+            nmtx = length(obj.attrName_mtx);
+            ncell = length(obj.attrName_cell);
+            obj.variantAttr_mtx = NaN(nvariant, nmtx);
+            obj.variantAttr_cell = repmat({''}, nvariant, ncell);
+            fprintf('fill in basic info\n');
+            tic;
+            colheader = textscan(header{end}(2:end), '%s', 'delimiter', sprintf('\t'));
+            colheader = colheader{1};
+            colheader = colheader(:)';
+            [~, colidx] = ismember(colheader, obj.attrName_mtx);
+            obj.variantAttr_mtx(:, colidx(colidx~=0)) = cell2mat( ...
+                arrayfun(@(idx) d{idx}, find(colidx), 'unif', 0) );
+            [~, colidx] = ismember(colheader, obj.attrName_cell);
+            for i = 1:length(colidx)
+                if colidx(i) ~= 0
+                    obj.variantAttr_cell(:, colidx(i)) = d{i};
+                end
+            end
+            toc; 
+            
+            colidx = strcmp(obj.attrName_cell, 'ALT');
+            obj.maxnalt = max( cellfun(@(x) length(strfind(x,',')), obj.variantAttr_cell(:, colidx)) ) + 1;
+            
+            fprintf('parse format data\n');
+            tic;
+            %format data
+            for i = 1:nformatfields
+                obj.formatData.(formatfields{i}) = ...
+                    d( 8+nformatfields+i:nformatfields:end );
+                obj.formatData.(formatfields{i}) = horzcat(obj.formatData.(formatfields{i}){:});
+            end
+            toc;
+            
+            
+            %INFO
+            d = d{8};
+            
+            %flag-info
+            fprintf('fill in flag info\n');
+            tic;
+            flags = intersect(obj.desc(strcmp(obj.desc(:,3), 'Flag'), 1), obj.attrName_mtx);
+            for i = 1:length(flags)
+                colidx = strcmp(obj.attrName_mtx, flags{i});
+                obj.variantAttr_mtx(:, colidx) = double(...
+                    ~cellfun(@isempty, strfind(d, flags{i})) );
+            end
+            toc;
+            
+            fprintf('index info fields\n');
+            tic;
+            reptb = [strcat(obj.attrName_mtx, '='), strcat(arrayfun(@num2str, (1:nmtx)', 'unif',0),'=')];
+            reptb = [reptb; [strcat(obj.attrName_cell, '='), strcat(arrayfun(@num2str, (1:ncell)'+nmtx,'unif',0), '=')]];
+            for i = 1:size(reptb, 1)
+                d = strrep(d, reptb{i,1}, reptb{i,2});
+            end
+            toc;
+            
+            fprintf('parse info data\n');
+            tic;
+            infos = regexp(d, '([\w\.]+)=([\w\+\-\.\,]+)', 'tokens');
+            infos = cellfun(@(x) vertcat(x{:}), infos, 'unif', 0);
+            nval = cellfun(@(x) size(x,1), infos);
+            infos = vertcat(infos{:}); %flat the entire info data
+            toc;
+            
+            fprintf('fill info data overhead\n');
+            tic;            
+            varidx = cell2mat(arrayfun(@(i) repmat(i, nval(i), 1), (1:nvariant)', 'unif', 0));
+            infoidx = str2double_fast(infos(:,1));
+            infos = infos(:,2); 
+            toc;
+            
+            fprintf('fill in numeric info data\n');
+            tic;
+            %num-info
+            curidx = infoidx <= nmtx;
+            obj.variantAttr_mtx( sub2ind([nvariant, nmtx], varidx(curidx), infoidx(curidx)) ) = ...
+                str2double_fast(infos( curidx ) );
+            toc;
+            
+            fprintf('fill in non-numeric info data\n');
+            tic;
+            %cell-info
+            curidx = ~curidx;
+            obj.variantAttr_cell( sub2ind([nvariant, ncell], varidx(curidx), infoidx(curidx)-nmtx) ) = infos( curidx ) ;
+            toc;
+        end
        
     end
     
@@ -460,7 +590,7 @@ end
 %                         if ismember(h{j}, obj.strfield)
 %                             obj.variants(i).(h{j}) = s{j};
 %                         else
-%                             obj.variants(i).(h{j}) = str2double(s{j});
+%                             obj.variants(i).(h{j}) = str2double_fast(s{j});
 %                         end
 %                     elseif strcmpi(h{j}, 'INFO')
 %                         t = textscan(s{j}, '%s', 'delimiter', ';');
@@ -534,7 +664,7 @@ end
 %                 obj.formatData(i, vi(i,:), orderidx{i}) = tmpdata;
 %             end            
 %             obj.formatData(cellfun(@isempty, obj.formatData)) = {''};
-%             obj.formatData(:, :, obj.formatNum==1) = str2double(obj.formatData(:, :, obj.formatNum==1));            
+%             obj.formatData(:, :, obj.formatNum==1) = str2double_fast(obj.formatData(:, :, obj.formatNum==1));            
 % %             obj.formatData(:, :, obj.formatNum > 1) = cellfun(@str2num, ...
 % %                 obj.formatData(:, :, obj.formatNum > 1), 'unif', 0);                        
 %             obj.formatRawData = {};

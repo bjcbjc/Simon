@@ -1,3 +1,25 @@
+#call variants with RNA data
+varCall.samtools:
+cmd	varCall
+callertag	samtools
+caller	samtools mpileup
+toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19
+toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19/bcftools
+programpath	/data/NYGC/Software/samtools/samtools-0.1.19/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+tmpoutpath	/scratch/
+prefix	samtools
+-DSug
+-f	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+-d	1000
+-q	50
+bam	=sample
+specifyname	132540-10N; 138381-4N; 132540-1T; 137064-1T; 139508-1T; 138381-2T; 132540; 138381; 132540-138381-N; 132540-138381-T; 132540-138381-all
+sample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam, Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
+overwrite	True
+mem	24G
+time	24::
 
 
 #call variants with RNA data
@@ -5,22 +27,23 @@ varCall.mutect:
 cmd	varCall
 callertag	mutect
 caller	muTect-1.1.4/muTect-1.1.4.jar
+toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
 programpath	/data/NYGC/Software/muTect/
 inputpath	/nethome/bjchen/Projects/Simon/RNA/
 outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
 tmpoutpath	/scratch/
 prefix	mutect
 --baqGapOpenPenalty	40
---num_threads	2
+--num_threads	1
 --reference_sequence	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
 -Djava.io.tmpdir	=/scratch/
 --analysis_type	MuTect
---dbsnp	/data/NYGC/Resources/muTect/dbsnp_132_b37.leftAligned.vcf
---cosmic	/data/NYGC/Resources/muTect/hg19_cosmic_v54_120711.vcf
---intervals	/data/NYGC/Resources/muTect/GRCh37_64.chrom.intervals
+--dbsnp	/nethome/bjchen/Projects/Simon/dbsnp_132_b37.leftAligned.chrTag.vcf
+--cosmic	/nethome/bjchen/Projects/Simon/hg19_cosmic_v54_120711.chrTag.vcf
+--intervals	/nethome/bjchen/Projects/Simon/GRCh37_64.chrom.chrTag.intervals
 bam	=sample
-normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted..mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam
-tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam
+tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.bam
 overwrite	True
 mem	24G
 time	24::
@@ -29,6 +52,7 @@ time	24::
 varCall.varscan:
 cmd	varCall
 toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19
+toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
 callertag	varscan
 caller	VarScan.v2.3.6/VarScan.v2.3.6.jar
 programpath	/data/NYGC/Software/VarScan/
@@ -40,8 +64,10 @@ prefix	varscan
 -q	50
 -Djava.io.tmpdir	=/scratch/
 bam	=sample
-normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam
-tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
+tumorsample	Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
+#normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam
+#tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
 overwrite	True
 mem	27G
 time	24::
@@ -62,8 +88,10 @@ prefix	sniper
 -F	vcf
 iterparas	''; -J -s 0.01
 bam	=sample
-normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam
-tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
+tumorsample	Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
+#normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam
+#tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
 overwrite	True
 mem	24G
 time	24::
@@ -85,7 +113,8 @@ inputpath	/nethome/bjchen/Projects/Simon/RNA/
 outputpath	/nethome/bjchen/Projects/Simon/RNA/
 prefix	mdup
 bam	=sample
-sample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.bam
+sample	Sample_137064-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.bam
+#sample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.bam
 tmpoutpath	/scratch/
 overwrite	True
 mem	12G
@@ -131,10 +160,11 @@ outputpath	/nethome/bjchen/Projects/Simon/RnaCount/
 -r	1; 10
 #-d	10000; 20000
 -d	200000
--q	0; 50
+-q	50
 stranded	True
 prefix	pcount
 bam	=sample
+#sample	Sample_137064-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.bam
 sample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.bam
 locfilepath	/nethome/bjchen/Projects/Simon/DNA/vcf/
 locfile	132540-10N-132540-1T.mutect-sniper-varscan.union.vcf; 132540-10N-132540-1T.mutect-sniper-varscan.union.vcf; 138381-4N-138381-2T.mutect-sniper-varscan.union.vcf; 138381-4N-138381-2T.mutect-sniper-varscan.union.vcf

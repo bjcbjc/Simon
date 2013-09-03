@@ -297,7 +297,7 @@ classdef Variant < dataset
             
             score = obj.selfref('Varscan_SSC');
             score(cellfun(@isempty, score)) = {'NaN'};
-            score = str2double(score);
+            score = str2double_fast(score);
             score(:,2) = obj.selfref('Sniper_SSC', '()', {':',2});
             
             obj.presetidx.distToCen500 = obj.selfref('distToCen') <= 500000;
