@@ -34,3 +34,20 @@ for i = 1:length(fns)
     vcfData.consolidateFormat(samplegroup, groupname);
     save(sprintf('data/vcf-%s.annt.mat',pid{1}),  'vcfData');
 end
+
+%%
+f = dir('RNA/varcall/*.vcf');
+fns = cell(size(f));
+for i = 1:length(fns)
+    fns{i} = f(i).name;
+end
+newfns = fns;
+newfns = strrep(newfns, '_Aligned.out.WithReadGroup.sorted', '');
+newfns = strrep(newfns, '_Sample_', '_');
+newfns = strrep(newfns, 'mutect_', '');
+newfns = strrep(newfns, 'varscan_', '');
+newfns = strrep(newfns, 'sniper_', '');
+newfns = strrep(newfns, '_-J-s0.01.sniper', '.sniper.-J-s0.01');
+newfns = strrep(newfns, '.mdup.bam_', '_');
+newfns = strrep(newfns, '.bam_', '_');
+

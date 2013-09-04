@@ -11,6 +11,7 @@ import itertools
 import re
 
 
+matlabcmd = '/usr/local/MATLAB/R2013a/bin/matlab -nodisplay -r "addpath(genpath(\'/nethome/bjchen/BJLib/Matlabox\')); addpath(genpath(\'%s/functions\')); %s; quit"\n'
 
 #read all available parameters for programs
 def getAvailableParas():
@@ -22,6 +23,34 @@ def getAvailableParas():
         tb[ l[0] ] = l[1:]
     return tb
 
+
+def batchreadvcf(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+
+    cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
+    vcfpath = cmdGenerator.checkPath(cmdset.pop('vcfpath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    matlabworkpath = cmdGenerator.checkPath(cmdset.pop('matlabworkpath'))
+    call, njob, outfnhead = configRobot.popParas(cmdset, ['call', 'njob', 'outfnhead'])
+    njob = int(njob)
+    if 'runOnServer' in cmdset.keys():
+        runOnServer = configRobot.popParas(cmdset, ['runOnServer'])
+    else:
+        runOnServer = ''
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    for jobidx in range(1, njob+1):
+        jobprefix = prefix + '%02d'%jobidx
+        CMDs = []
+        functioncall = call + "(%d, %d, '%s', '%s', '%s');"%(jobidx, njob,vcfpath,outputpath,outfnhead)
+
+        CMDs.append( cmdGenerator.formatCmd( matlabcmd%(matlabworkpath, functioncall) ) )
+        jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeJob=False, runOnServer=runOnServer)
+    return jobmanager
 
 def varCall_samtools(cmdset, runmode='test'):
     if runmode == 'test':

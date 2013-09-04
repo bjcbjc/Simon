@@ -1,3 +1,21 @@
+
+
+#parse vcf files from RNA calls
+batchParseVcf:
+cmd	batchreadvcf
+call	batchreadvcf
+vcfpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+outputpath	/nethome/bjchen/Projects/Simon/data/
+outfnhead	rnavar
+matlabworkpath	/nethome/bjchen/Projects/Simon/
+njob	4
+prefix	parseVCF
+runOnServer	matlab.nygenome.org
+overwrite	True
+mem	2G
+time	6::
+
+
 #call variants with RNA data
 varCall.samtools:
 cmd	varCall
