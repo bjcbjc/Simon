@@ -1,6 +1,6 @@
 
 from sys import argv
-from os import system
+from os import system, popen
 from string import Template
 import os.path
 import copy
@@ -9,6 +9,7 @@ import jobFactory
 import configRobot
 import itertools
 import re
+from randstr import randstr
 
 
 matlabcmd = '/usr/local/MATLAB/R2013a/bin/matlab -nodisplay -r "addpath(genpath(\'/nethome/bjchen/BJLib/Matlabox\')); addpath(genpath(\'%s/functions\')); %s; quit"\n'
@@ -22,6 +23,46 @@ def getAvailableParas():
     for l in t:
         tb[ l[0] ] = l[1:]
     return tb
+
+def replaceMQ(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+    cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
+    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+    bampattern, replaceval = configRobot.popParas(cmdset, ['bampattern', 'replaceval'])
+    if 'sampara' in cmdset.keys():
+        sampara = cmdset.pop('sampara')
+        if sampara[0] != '"': sampara = '"' + sampara + '"'
+    else:
+        sampara = ''
+    f = popen('ls %s%s'%(inputpath, bampattern))
+    bam = map(lambda(l): l.split('/')[-1], f.read().split())
+    f.close()
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+    for bamfile in bam:
+        jobprefix = prefix + bamfile
+        CMDs = []
+        jobtmppath = tmpoutpath + randstr() + '/'
+
+        inputfile = inputpath + bamfile
+        outputfile = outputpath + bamfile.replace('.bam', '.MQrep.bam')
+        tmpoutfile = jobtmppath + bamfile.replace('.bam', '.MQrep.bam')
+
+        if 'toShell' in cmdset.keys():
+            CMDs.append( cmdset['toShell'] ) 
+
+        CMDs.append( cmdGenerator.checkPathOnNode(jobtmppath) )
+        CMDs.append( cmdGenerator.formatCmd( 'bash /nethome/bjchen/BJLib/shlib/replaceFieldBam.sh', inputfile, '5', replaceval, sampara, '>', tmpoutfile) )
+        CMDs.append( cmdGenerator.formatCmd('mv %s %s'%(tmpoutfile, outputfile)) )
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
+
+        jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False)
+    return jobmanager
 
 
 def batchreadvcf(cmdset, runmode='test'):

@@ -1,4 +1,19 @@
 
+#replace MQ to 100 in RNA bam
+MQ100:
+cmd	replaceMQ
+toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19
+inputpath	/nethome/bjchen/Projects/Simon/RNA/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/
+tmpoutpath	/scratch/
+sampara	-q 50
+replaceval	100
+prefix	repMQ
+bampattern	*.bam
+overwrite	True
+mem	2G
+time	1::
+
 
 #parse vcf files from RNA calls
 batchParseVcf:
@@ -60,11 +75,13 @@ prefix	mutect
 --cosmic	/nethome/bjchen/Projects/Simon/hg19_cosmic_v54_120711.chrTag.vcf
 --intervals	/nethome/bjchen/Projects/Simon/GRCh37_64.chrom.chrTag.intervals
 bam	=sample
-normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.bam
-tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.bam
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam
+tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam
 overwrite	True
 mem	24G
 time	24::
+
+
 
 #VarScan call for RNA
 varCall.varscan:

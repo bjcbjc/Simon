@@ -357,8 +357,7 @@ classdef VCF < dynamicprops
                 strcmp(formatFieldTable(:,2), 'A');                        
             obj.allelicFormatField = formatFieldTable(allelic,1);
         end
-        
-        
+                
         function consolidateFormat(obj, samplegroup, groupname)
             %consolidate format data by samplegroup
             %samplegroup: cell, #group x 1, each group contains cell array
@@ -441,9 +440,9 @@ classdef VCF < dynamicprops
         function obj = readGoodVCF(obj, blocksize)
             if nargin < 2, blocksize = 10000; end
             %FORMAT string is the same for all the records
-            [header, varExample] = obj.obtainHeader();
+            header = obj.obtainHeader();
             obj.parseHeader(header);
-            fields = textscan(varExample, '%s', 'delimiter', sprintf('\t'));
+            fields = textscan(header{end}(2:end), '%s', 'delimiter', sprintf('\t'));
             fields = fields{1};
             nsample = length(fields) - 9;
             obj.sample = fields(10:end);
@@ -520,7 +519,7 @@ classdef VCF < dynamicprops
                     tmp = d( 8+nformatfields+i:nformatfields:end );
                     tmp = horzcat(tmp{:});                    
                     if ismember(formatfields{i}, {'GT', 'IGT'})
-                        obj.formatData.(formatfields{i})(fillidx, :) = strkey(tmp);
+                        obj.formatData.(formatfields{i})(fillidx, :) = strkey(tmp, 'add');
                     elseif ismember(obj.desc{descidx, 3}, {'Integer','Float'}) && ...
                             isnumericstring(obj.desc{descidx, 2})
                         ndataval = str2double(obj.desc{descidx,2});
@@ -696,7 +695,11 @@ classdef VCF < dynamicprops
             curidx = ~curidx;
             obj.variantAttr_cell( sub2ind([nvariant, ncell], varidx(curidx), infoidx(curidx)-nmtx) ) = infos( curidx ) ;            
         end
-       
+        
+        function keys = lockey(obj)
+            keys = strcat(obj.variantAttr_cell(:,1), '-', ...
+                arrayfun(@num2str, obj.variantAttr_mtx(:,1), 'unif', 0));
+        end
     end
     
 end
