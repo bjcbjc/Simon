@@ -1,6 +1,6 @@
-function batchreadvcf(jobidx, njob, vcfdir, outdir, outfnhead)
+function batchreadvcf(jobidx, njob, vcffnkey, vcfdir, outdir, outfnhead)
 
-    f = dir([vcfdir '*.vcf']);
+    f = dir([vcfdir vcffnkey]);
     fns = cell(size(f));
     for i = 1:length(fns)
         fns{i} = f(i).name;
@@ -15,8 +15,13 @@ function batchreadvcf(jobidx, njob, vcfdir, outdir, outfnhead)
     newfns = strrep(newfns, '_-J-s0.01.sniper', '.sniper.-J-s0.01');
     newfns = strrep(newfns, '.mdup.bam_', '_');
     newfns = strrep(newfns, '.bam_', '_');
+    newfns = strrep(newfns, '.bam.', '.');
     newfns = strrep(newfns, '.vcf', '');
     
+    if length(unique(newfns)) ~=  length(newfns)
+        fprintf('invalid new file names\n');
+        return
+    end
     filesize = [f.bytes];
     [~, si] = sort(filesize);    
     fns = fns(si);
@@ -30,7 +35,8 @@ function batchreadvcf(jobidx, njob, vcfdir, outdir, outfnhead)
             fprintf('skip %d(th) file, exists\n',i);
             continue;
         end        
-        tic; vcfData = VCF([vcfdir fns{runidx(i)}],[],[],true, 5000); toc;
+        %tic; vcfData = VCF([vcfdir fns{runidx(i)}],[],[],true, 5000); toc;
+        tic; vcfData = VCF([vcfdir fns{runidx(i)}],[],[],false, [], true); toc;
         save(sprintf('%s/%s.%s.mat', outdir, outfnhead, newfns{runidx(i)}), 'vcfData');
         clear vcfData
         fprintf('processed %d files: %s\n', i, fns{runidx(i)});

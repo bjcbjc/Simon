@@ -345,9 +345,24 @@ classdef Variant < dataset
             desc = obj.subsetdesc;
         end
         
-        function key = lockey(obj)
-            key = strcat( arrayfun(@num2str, obj.selfref('loc', '()', {':',1}), 'unif', 0), '-', ...
-                arrayfun(@num2str, obj.selfref('loc', '()', {':',2}), 'unif', 0) );
+        function key = lockey(obj, numchrm)
+            if nargin < 2
+                numchrm = true;
+            end
+            
+            key = textscan(int2str( obj.selfref('loc', '()', {':',1})' ), '%s');
+            key = key{1};
+            if ~numchrm
+                key = strrep(key, '23', 'X');
+                key = strrep(key, '24', 'Y');
+                key = strrep(key, '25', 'M');
+                key = strcat('chr', key);
+            end
+            k2 = textscan(int2str( obj.selfref('loc', '()', {':',2})' ), '%s');
+            key = strcat(key, '-', k2{1});
+            
+%             key = strcat( arrayfun(@num2str, obj.selfref('loc', '()', {':',1}), 'unif', 0), '-', ...
+%                 arrayfun(@num2str, obj.selfref('loc', '()', {':',2}), 'unif', 0) );
         end
         
         function writeText(obj, filename)            

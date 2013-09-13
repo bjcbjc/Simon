@@ -3,13 +3,13 @@
 MQ100:
 cmd	replaceMQ
 toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19
-inputpath	/nethome/bjchen/Projects/Simon/RNA/
-outputpath	/nethome/bjchen/Projects/Simon/RNA/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/bam/
 tmpoutpath	/scratch/
 sampara	-q 50
-replaceval	100
-prefix	repMQ
-bampattern	*.bam
+replaceval	254
+prefix	MQ254
+bampattern	*sorted.bam
 overwrite	True
 mem	2G
 time	1::
@@ -20,11 +20,13 @@ batchParseVcf:
 cmd	batchreadvcf
 call	batchreadvcf
 vcfpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
-outputpath	/nethome/bjchen/Projects/Simon/data/
+outputpath	/nethome/bjchen/Projects/Simon/data/tmp/
+vcffnkey	*q50*.vcf
+#vcffnkey	*130*.vcf
 outfnhead	rnavar
 matlabworkpath	/nethome/bjchen/Projects/Simon/
-njob	4
-prefix	parseVCF
+njob	1
+prefix	parseVCFq50
 runOnServer	matlab.nygenome.org
 overwrite	True
 mem	2G
@@ -62,7 +64,7 @@ callertag	mutect
 caller	muTect-1.1.4/muTect-1.1.4.jar
 toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
 programpath	/data/NYGC/Software/muTect/
-inputpath	/nethome/bjchen/Projects/Simon/RNA/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/calledbam/
 outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
 tmpoutpath	/scratch/
 prefix	mutect
@@ -75,8 +77,10 @@ prefix	mutect
 --cosmic	/nethome/bjchen/Projects/Simon/hg19_cosmic_v54_120711.chrTag.vcf
 --intervals	/nethome/bjchen/Projects/Simon/GRCh37_64.chrom.chrTag.intervals
 bam	=sample
-normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam
-tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.q50.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.q50.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.q50.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.q50.bam
+tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.q50.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.q50.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.q50.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.q50.bam
+#normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.q50.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.q50.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.q50.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.q50.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam
+#tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.MQrep.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam
 overwrite	True
 mem	24G
 time	24::
@@ -91,7 +95,7 @@ toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
 callertag	varscan
 caller	VarScan.v2.3.6/VarScan.v2.3.6.jar
 programpath	/data/NYGC/Software/VarScan/
-inputpath	/nethome/bjchen/Projects/Simon/RNA/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam/
 outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
 tmpoutpath	/scratch/
 prefix	varscan
@@ -99,10 +103,10 @@ prefix	varscan
 -q	50
 -Djava.io.tmpdir	=/scratch/
 bam	=sample
-normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
-tumorsample	Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
-#normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam
-#tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
+#normalsample	Sample_130342-7N_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-7N_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-7N_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-7N_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-7N_Aligned.out.WithReadGroup.sorted.bam
+#tumorsample	Sample_130342-13T_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-21T_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-18T_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_135098-7T_Aligned.out.WithReadGroup.sorted.bam
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam
+tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam
 overwrite	True
 mem	27G
 time	24::
@@ -114,7 +118,7 @@ cmd	varCall
 callertag	sniper
 caller	SomaticSniper-1.0.2/bin/bam-somaticsniper
 programpath	/data/NYGC/Software/SomaticSniper/
-inputpath	/nethome/bjchen/Projects/Simon/RNA/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam/
 outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
 tmpoutpath	/scratch/
 prefix	sniper
@@ -123,10 +127,10 @@ prefix	sniper
 -F	vcf
 iterparas	''; -J -s 0.01
 bam	=sample
-normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
-tumorsample	Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
-#normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam
-#tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam
+#normalsample	Sample_130342-7N_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-7N_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-7N_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-7N_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-7N_Aligned.out.WithReadGroup.sorted.bam
+#tumorsample	Sample_130342-13T_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-21T_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-18T_Aligned.out.WithReadGroup.sorted.bam; Sample_130342-1T_Aligned.out.WithReadGroup.sorted.bam; Sample_135098-7T_Aligned.out.WithReadGroup.sorted.bam
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam
+tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.MQrep.bam
 overwrite	True
 mem	24G
 time	24::

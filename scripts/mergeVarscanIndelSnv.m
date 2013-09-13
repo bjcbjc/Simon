@@ -1,5 +1,5 @@
 
-fns = listfilename('data/rnavar*var*indel*.mat');
+fns = listfilename('data/rnavar*130*varscan*indel*.mat');
 for i = 1:length(fns)
     v_indel = loadStructData(['data/' fns{i}]);
     v_snv = loadStructData(['data/' strrep(fns{i}, 'indel', 'snv')]);

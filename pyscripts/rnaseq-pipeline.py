@@ -1,4 +1,3 @@
-
 from sys import argv
 from os import system, popen
 from string import Template
@@ -12,7 +11,7 @@ import re
 from randstr import randstr
 
 
-matlabcmd = '/usr/local/MATLAB/R2013a/bin/matlab -nodisplay -r "addpath(genpath(\'/nethome/bjchen/BJLib/Matlabox\')); addpath(genpath(\'%s/functions\')); %s; quit"\n'
+matlabcmd = '/usr/local/MATLAB/R2013b/bin/matlab -nodisplay -r "addpath(genpath(\'/nethome/bjchen/BJLib/Matlabox\')); addpath(genpath(\'%s/functions\')); %s; quit"\n'
 
 #read all available parameters for programs
 def getAvailableParas():
@@ -72,6 +71,7 @@ def batchreadvcf(cmdset, runmode='test'):
         createpath = True
 
     cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
+    vcffnkey = cmdset.pop('vcffnkey')
     vcfpath = cmdGenerator.checkPath(cmdset.pop('vcfpath'))
     outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
     matlabworkpath = cmdGenerator.checkPath(cmdset.pop('matlabworkpath'))
@@ -87,7 +87,7 @@ def batchreadvcf(cmdset, runmode='test'):
     for jobidx in range(1, njob+1):
         jobprefix = prefix + '%02d'%jobidx
         CMDs = []
-        functioncall = call + "(%d, %d, '%s', '%s', '%s');"%(jobidx, njob,vcfpath,outputpath,outfnhead)
+        functioncall = call + "(%d, %d, '%s', '%s', '%s', '%s');"%(jobidx, njob, vcffnkey, vcfpath,outputpath,outfnhead)
 
         CMDs.append( cmdGenerator.formatCmd( matlabcmd%(matlabworkpath, functioncall) ) )
         jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeJob=False, runOnServer=runOnServer)
@@ -230,7 +230,7 @@ def varCall(cmdset, runmode='test'):
             sampleinputpath = inputpath + sample + '/'
             sampleoutputpath = outputpath + sample + '/'
 
-        sampletmpoutpath = tmpoutpath + prefix + '/'
+        sampletmpoutpath = tmpoutpath + prefix + '_' + randstr() + '/'
 
         for addpara in iterparas:
             paraset = copy.deepcopy(cmdset)
@@ -264,6 +264,7 @@ def varCall(cmdset, runmode='test'):
                 CMDs.append( cmdGenerator.formatCmd( callcmd, template.substitute(tempset), paraset ) )
 
             CMDs.append( cmdGenerator.formatCmd( 'mv %s* %s'%(tempset['outputpath']+tempset['outbase'], sampleoutputpath) )) 
+            CMDs.append( cmdGenerator.formatCmd( 'rm -f %s*.pileup'%(tempset['outputpath']) ) )
             CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, sampleoutputpath)) )
 
             jobmanager.createJob(jobprefix, CMDs, outpath = sampleoutputpath, outfn = jobprefix, trackcmd=False)
