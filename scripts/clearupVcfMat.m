@@ -1,18 +1,22 @@
 
 
 cleanmutect = false;
-cleanvarscan = false;
-cleansniper = true;
+cleanvarscan = true;
+cleansniper = false;
 
 if cleanmutect
     % clean up mutect vcf mat
     %
     % FA basically is AD(alt)/(AD(alt)+AD(ref)), so remove
     %
-    fns = listfilename('data/rnavar*q50*mutect*.mat');
+    fns = listfilename('data/rnavar*MQ254*mutect*.mat');
     for i = 1:length(fns)
         changed = false;
         vcfData = loadStructData(['data/' fns{i}]);
+        if size(vcfData.variantAttr_cell,1) ~= size(vcfData.variantAttr_mtx, 1)
+            fprintf('invalid VCF, %s\n', fns{i});
+            continue;
+        end
         if vcfData.maxnalt ~= 1
             fprintf('skip %s, more than one ALT at sites\n', fns{i});
             continue;
@@ -88,10 +92,15 @@ end
 if cleanvarscan
     %FREQ is just AD/(AD+RD), remove
     %info DP is just sum of format DPs
-    fns = listfilename('data/rnavar*130*varscan.mat');
+    fns = listfilename('data/rnavar*MQrep*varscan.mat');
+    
     for i = 1:length(fns)
         changed = false;
         vcfData = loadStructData(['data/' fns{i}]);
+        if size(vcfData.variantAttr_cell,1) ~= size(vcfData.variantAttr_mtx, 1)
+            fprintf('invalid VCF, %s\n', fns{i});
+            continue;
+        end
         if isfield(vcfData.formatData, 'FREQ')
             vcfData.formatData = rmfield(vcfData.formatData, 'FREQ');
             changed = true;
@@ -159,11 +168,15 @@ end
 if cleansniper
     %FREQ is just AD/(AD+RD), remove
     %info DP is just sum of format DPs
-    fns = listfilename('data/rnavar*130*sniper*.mat');
+    fns = listfilename('data/rnavar*MQ254*sniper*.mat');
+    fns = [fns; listfilename('data/rnavar*MQrep*sniper*.mat')]; 
     for i = 1:length(fns)
         changed = false;
         vcfData = loadStructData(['data/' fns{i}]);        
-        
+        if size(vcfData.variantAttr_cell,1) ~= size(vcfData.variantAttr_mtx, 1)
+            fprintf('invalid VCF, %s\n', fns{i});
+            continue;
+        end
         if iscell(vcfData.formatData.GT)
             fillGT = false;
         else

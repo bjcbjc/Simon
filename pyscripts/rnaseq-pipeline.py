@@ -23,12 +23,112 @@ def getAvailableParas():
         tb[ l[0] ] = l[1:]
     return tb
 
+
+
+def bowtie(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+
+    bowtie_setting = ' --local --fast-local '
+
+    cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
+    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+    prog = cmdset.pop('prog')
+
+    if int(cmdset['-p']) > 1: #multiple threads per job
+        sgeopt = ['-pe make ' + cmdset['-p']]
+    else:
+        sgeopt = []
+
+
+    outputbam = cmdset.pop('bamfn')
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    f = popen('ls %s*R1*.fastq.gz'%inputpath)
+    readfns = f.read().split()
+    f.close()
+
+    sampletmpoutpath = tmpoutpath + prefix + '_' + randstr() + '/'
+    jobprefix = prefix 
+    
+    CMDs = []
+    if 'toShell' in cmdset.keys():
+        CMDs.append( cmdGenerator.formatCmd( cmdset.pop('toShell') ) )
+
+    CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+
+    callcmd = prog + bowtie_setting + '-1 %s -2 %s'%(','.join(readfns), ','.join(readfns).replace('R1','R2'))
+    callcmd = cmdGenerator.formatCmd(callcmd, cmdset) + ' | samtools view -Sb - > %s'%(sampletmpoutpath + outputbam)
+    CMDs.append(callcmd)
+
+    CMDs.append( cmdGenerator.formatCmd( 'mv %s* %s'%(sampletmpoutpath, outputpath) )) 
+    CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
+
+    jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
+    return jobmanager
+
+
+def mismatchCountByRead(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+
+    cmd, mem, time, samples, prefix, bam = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'sample', 'prefix', 'bam'])
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath) 
+    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+    pycmd = '/data/NYGC/Software/python/Python-2.7.3/python ' + cmdGenerator.checkPath(cmdset.pop('programpath')) + cmdset.pop('pyprog')
+    
+    if type(samples) != type([]) and type(samples) != type(()):
+        samples = [samples]
+    #expand if needed
+    if any( ['*' in l for l in samples] ):
+        fstr = samples
+        samples = []
+        for fkey in fstr:
+            f = popen('ls %s%s'%(inputpath, fkey))
+            samples.extend([ l.replace(inputpath, '') for l in  f.read().split()])
+            f.close()
+
+    for sampi in range(len(samples)):
+        sample = samples[sampi]
+        paraset = copy.deepcopy(cmdset)        
+        jobfnprefix = prefix + '_' + sample
+        if bam == '=sample':
+            inputfile = sample
+            outputfile = sample + '.mismatch.stat'
+        else: 
+            print 'not implemented'
+            exit()
+
+        CMDs = []
+        sampletmpoutpath = tmpoutpath + randstr() + '/'
+        CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+    
+        paraset['-o'] =  sampletmpoutpath + outputfile
+        paraset['-bam'] = inputpath + inputfile
+        
+        CMDs.append( cmdGenerator.formatCmd( pycmd, paraset ) )
+        CMDs.append( cmdGenerator.formatCmd( 'mv %s %s'%(paraset['-o'], outputpath) ) )
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobfnprefix, jobmanager.ext, outputpath)) )
+
+        jobmanager.createJob(jobfnprefix, CMDs, outpath = outputpath, outfn = jobfnprefix, trackcmd=False)
+    return jobmanager
+
+
 def replaceMQ(cmdset, runmode='test'):
     if runmode == 'test':
         createpath = False
     else:
         createpath = True
-    cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
+    cmd, mem, time, prefix, addext = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix', 'addext'])
     inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
     outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
     tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
@@ -49,8 +149,8 @@ def replaceMQ(cmdset, runmode='test'):
         jobtmppath = tmpoutpath + randstr() + '/'
 
         inputfile = inputpath + bamfile
-        outputfile = outputpath + bamfile.replace('.bam', '.MQrep.bam')
-        tmpoutfile = jobtmppath + bamfile.replace('.bam', '.MQrep.bam')
+        outputfile = outputpath + bamfile.replace('.bam', '.%s.bam'%(addext))
+        tmpoutfile = jobtmppath + bamfile.replace('.bam', '.%s.bam'%(addext))
 
         if 'toShell' in cmdset.keys():
             CMDs.append( cmdset['toShell'] ) 
@@ -72,6 +172,12 @@ def batchreadvcf(cmdset, runmode='test'):
 
     cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
     vcffnkey = cmdset.pop('vcffnkey')
+    if ' ' in vcffnkey:
+        tmp = vcffnkey.split(' ')
+        vcffnkey = "{'" + "','".join(tmp) + "'}"
+    else:
+        vcffnkey = "'" + vcffnkey + "'"
+
     vcfpath = cmdGenerator.checkPath(cmdset.pop('vcfpath'))
     outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
     matlabworkpath = cmdGenerator.checkPath(cmdset.pop('matlabworkpath'))
@@ -87,9 +193,10 @@ def batchreadvcf(cmdset, runmode='test'):
     for jobidx in range(1, njob+1):
         jobprefix = prefix + '%02d'%jobidx
         CMDs = []
-        functioncall = call + "(%d, %d, '%s', '%s', '%s', '%s');"%(jobidx, njob, vcffnkey, vcfpath,outputpath,outfnhead)
+        functioncall = call + "(%d, %d, %s, '%s', '%s', '%s');"%(jobidx, njob, vcffnkey, vcfpath,outputpath,outfnhead)
 
         CMDs.append( cmdGenerator.formatCmd( matlabcmd%(matlabworkpath, functioncall) ) )
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath) ) )
         jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeJob=False, runOnServer=runOnServer)
     return jobmanager
 
@@ -103,7 +210,7 @@ def varCall_samtools(cmdset, runmode='test'):
     cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
     inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
     outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
-    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
     programpath = cmdGenerator.checkPath(cmdset.pop('programpath'))
 
     caller = cmdset.pop('caller')
@@ -196,7 +303,7 @@ def varCall(cmdset, runmode='test'):
     cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
     inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
     outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
-    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
     programpath = cmdGenerator.checkPath(cmdset.pop('programpath'))
 
     caller = cmdset.pop('caller')

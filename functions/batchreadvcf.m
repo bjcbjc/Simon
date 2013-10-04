@@ -1,10 +1,13 @@
 function batchreadvcf(jobidx, njob, vcffnkey, vcfdir, outdir, outfnhead)
 
-    f = dir([vcfdir vcffnkey]);
-    fns = cell(size(f));
-    for i = 1:length(fns)
-        fns{i} = f(i).name;
+    if ~iscell(vcffnkey)
+        vcffnkey = {vcffnkey};
     end
+    fns = listfilename([vcfdir vcffnkey{1}]);
+    for i = 2:length(vcffnkey)
+        fns = [fns; listfilename([vcfdir vcffnkey{i}])];
+    end
+    
         
     newfns = fns;
     newfns = strrep(newfns, '_Aligned.out.WithReadGroup.sorted', '');
@@ -16,16 +19,20 @@ function batchreadvcf(jobidx, njob, vcffnkey, vcfdir, outdir, outfnhead)
     newfns = strrep(newfns, '.mdup.bam_', '_');
     newfns = strrep(newfns, '.bam_', '_');
     newfns = strrep(newfns, '.bam.', '.');
+    newfns = strrep(newfns, '.q50_', '_');
     newfns = strrep(newfns, '.vcf', '');
+    newfns = strrep(newfns, '.MQrep_', '_');
+    newfns = strrep(newfns, '.MQ254_', '_');
+    newfns = strrep(newfns, '.mdup_', '_');
     
     if length(unique(newfns)) ~=  length(newfns)
         fprintf('invalid new file names\n');
         return
     end
-    filesize = [f.bytes];
-    [~, si] = sort(filesize);    
-    fns = fns(si);
-    newfns = newfns(si);
+%     filesize = [f.bytes];
+%     [~, si] = sort(filesize);    
+%     fns = fns(si);
+%     newfns = newfns(si);
         
     runidx = jobDivider(jobidx, njob, length(newfns));
     
@@ -37,7 +44,11 @@ function batchreadvcf(jobidx, njob, vcffnkey, vcfdir, outdir, outfnhead)
         end        
         %tic; vcfData = VCF([vcfdir fns{runidx(i)}],[],[],true, 5000); toc;
         tic; vcfData = VCF([vcfdir fns{runidx(i)}],[],[],false, [], true); toc;
-        save(sprintf('%s/%s.%s.mat', outdir, outfnhead, newfns{runidx(i)}), 'vcfData');
+        if size(vcfData.variantAttr_cell,1) ~= size(vcfData.variantAttr_mtx,1)
+            fprintf('skip invalid vcf, %s\n', newfns{runidx(i)});
+        else
+            save(sprintf('%s/%s.%s.mat', outdir, outfnhead, newfns{runidx(i)}), 'vcfData');
+        end
         clear vcfData
         fprintf('processed %d files: %s\n', i, fns{runidx(i)});
     end

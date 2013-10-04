@@ -3,22 +3,27 @@ figdir = 'figures/rnavar/';
 savefig = true;
 set(gcf, 'position',  [1678, 1155, 875, 703]);
 
-
-patienttb = {'patient5', '132540-10N', '132540-1T', 'primary'; ...
-    'patient5', '132540-10N', '137064-1T', 'meta1'; ...
-    'patient5', '132540-10N', '139508-1T', 'meta2'; ...
-    'patient10', '138381-4N', '138381-2T', 'meta1'; ...
-    'patient4', '130342-7N', '130342-1T', 'primary'; ...
-    'patient4', '130342-7N', '130342-13T', 'meta1'; ...
-    'patient4', '130342-7N', '130342-18T', 'meta2'; ...
-    'patient4', '130342-7N', '130342-21T', 'meta3'; ...
-    'patient4', '130342-7N', '135098-7T', 'meta4'} ;
+if ~exist('patienttb', 'var')
+    patienttb = loadStructData('data/metaTB.mat');
+    patienttb = patienttb.normalTumorPair;
+end
+% patienttb = {'patient5', '132540-10N', '132540-1T', 'primary'; ...
+%     'patient5', '132540-10N', '137064-1T', 'meta1'; ...
+%     'patient5', '132540-10N', '139508-1T', 'meta2'; ...
+%     'patient10', '138381-4N', '138381-2T', 'meta1'; ...
+%     'patient4', '130342-7N', '130342-1T', 'primary'; ...
+%     'patient4', '130342-7N', '130342-13T', 'meta1'; ...
+%     'patient4', '130342-7N', '130342-18T', 'meta2'; ...
+%     'patient4', '130342-7N', '130342-21T', 'meta3'; ...
+%     'patient4', '130342-7N', '135098-7T', 'meta4'} ;
 
 npair = size(patienttb, 1);
 
 callerset = {'mutect', 'mutect'; 'varscan', 'varscan'; ...
     'sniper', 'sniper'; 'mutect', 'mutect_MQ'; 'sniper', 'sniper_-J-s0.01'; ...
-    'mutect', 'mutect_q50'};
+    'mutect', 'mutect_q50'; 'mutect', 'mutect_MQ254'; ...
+    'varscan', 'varscan_MQ254'; 'sniper', 'sniper_MQ254'; 'sniper', 'sniper_MQ254_-J-s0.01'; ...
+    'varscan', 'varscan_MQ100'; 'sniper', 'sniper_MQ100'; 'sniper', 'sniper_MQ100_-J-s0.01';};
 
 datadir = 'data/';
 
@@ -39,23 +44,28 @@ for calleridx = 1:size(callerset,1)
         end
     else
         curnpair = size(RnaVarLoc.(keyfd).lockey, 1);
-        RnaVarLoc.(keyfd).lockey(curnpair+1:npair, :) = cell(npair-curnpair, 2);
-        RnaVarLoc.(keyfd).filter(curnpair+1:npair, :) = cell(npair-curnpair, 2);
-        RnaVarLoc.(keyfd).GT(curnpair+1:npair, :) = cell(npair-curnpair, 2);
-        RnaVarLoc.(keyfd).SS(curnpair+1:npair, :) = cell(npair-curnpair, 2);
+        if curnpair < npair
+            RnaVarLoc.(keyfd).lockey(curnpair+1:npair, :) = cell(npair-curnpair, 2);
+            RnaVarLoc.(keyfd).filter(curnpair+1:npair, :) = cell(npair-curnpair, 2);
+            RnaVarLoc.(keyfd).GT(curnpair+1:npair, :) = cell(npair-curnpair, 2);
+            RnaVarLoc.(keyfd).SS(curnpair+1:npair, :) = cell(npair-curnpair, 2);
+        end
     end
     
-    for pairidx = 4:npair %1:npair
-        if ~isempty(strfind(callerset{calleridx,2}, 'mutect_'))
+    for pairidx = 1:npair
+        if ~isempty(strfind(callerset{calleridx,2}, 'MQ')) || ...
+                ~isempty(strfind(callerset{calleridx,2}, 'q50'))
             tmp = textscan(callerset{calleridx,2}, '%s', 'delimiter', '_');
-            callersetname = [ tmp{1}{2} '.' tmp{1}{1}];
+            tmp = tmp{1};
+            tmp = tmp(:)';
+            callersetname = [ tmp{2} '.' strjoin(tmp(setdiff(1:length(tmp), 2)), '.')];
         else
             callersetname = strrep(callerset{calleridx,2},'_','.');
         end
         datafilename = [datadir ...
             sprintf('rnavar.%s_%s.mdup.%s.mat',patienttb{pairidx,2}, ...
             patienttb{pairidx,3}, callersetname)];
-        if exist(datafilename, 'file')
+        if exist(datafilename, 'file') && isempty(RnaVarLoc.(keyfd).lockey{pairidx,1})
             v = loadStructData(datafilename);
             RnaVarLoc.(keyfd).lockey{pairidx,1} = strkey(v.lockey(), ...
                 'add', 'saveto', '~/Projects/Simon/data/DICTIONARY.mat', 'savelater');
@@ -77,7 +87,7 @@ for calleridx = 1:size(callerset,1)
         datafilename = [datadir ...
             sprintf('rnavar.%s_%s.%s.mat',patienttb{pairidx,2}, ...
             patienttb{pairidx,3}, callersetname)];
-        if exist(datafilename, 'file')
+        if exist(datafilename, 'file') && isempty(RnaVarLoc.(keyfd).lockey{pairidx,2})
             v = loadStructData(datafilename);
             RnaVarLoc.(keyfd).lockey{pairidx,2} = strkey(v.lockey(), ...
                 'add', 'saveto', '~/Projects/Simon/data/DICTIONARY.mat', 'savelater');
@@ -290,14 +300,16 @@ end
 
 mduplabel = {'mdup', 'no mdup'};
 passkey = strkey('PASS','lookup', '~/Projects/Simon/data/DICTIONARY.mat');
-label = {'no MQ', 'MQ-pass', 'MQ-reject'};
+label = {'MQ100-pass', 'no MQ filter',  'MQ254', 'MQ100-reject'};
+clf
 for mdupidx = 1:2
-    for pairidx = 1:size(patienttb,1)
+    for pairidx = 1:4%size(patienttb,1)
         subplot(2,2,pairidx)
-        pass = RnaVarLoc.mutect_MQ.filter{pairidx, mdupidx} == passkey;
-        tmp = { RnaVarLoc.mutect_def.lockey{pairidx, mdupidx}, ...
-            RnaVarLoc.mutect_MQ.lockey{pairidx, mdupidx}(pass), ...
-            RnaVarLoc.mutect_MQ.lockey{pairidx, mdupidx}(~pass) };
+        pass = RnaVarLoc.mutect_MQ100.filter{pairidx, mdupidx} == passkey;
+        tmp = { RnaVarLoc.mutect_MQ100.lockey{pairidx, mdupidx}(pass), ...
+            RnaVarLoc.mutect_def.lockey{pairidx, mdupidx}, ...                        
+            RnaVarLoc.mutect_MQ254.lockey{pairidx, mdupidx}, ...
+            RnaVarLoc.mutect_MQ100.lockey{pairidx, mdupidx}(~pass)};
         fixvenn(tmp, 'label', label, 'numfontsize', 12, 'labelfontsize', 14);
         title([patienttb{pairidx,1}, ' ', mduplabel{mdupidx}], 'fontsize', 14);
     end
@@ -307,6 +319,43 @@ for mdupidx = 1:2
     end
 end
 
+%%
+% effect of MQ for varscan and sniper, 3x3 (tumor samples)
+
+mduplabel = {'mdup', 'no mdup'};
+%passkey = strkey('PASS','lookup', '~/Projects/Simon/data/DICTIONARY.mat');
+%label = {'no MQ rest', 'no MQ somatic',  'MQ254 somatic', 'MQ254 rest'};
+label = {'no MQ rest', 'no MQ somatic',  'MQ100 somatic', 'MQ100 rest'};
+callers  = {'varscan', 'sniper'};
+clf
+for calleridx = 1:length(callers)
+    for mdupidx = 1
+        for pairidx = 1:4%size(patienttb,1)
+            %subplot(3,3,pairidx)
+            subplot(2,2,pairidx)
+            noMQ = [callers{calleridx} '_def'];
+            MQ254 = [callers{calleridx} '_MQ100'];
+            if strcmp(callers{calleridx}, 'varscan')
+                noMQ_somatic = RnaVarLoc.(noMQ).SS{pairidx, mdupidx} == 2;
+                MQ254_somatic = RnaVarLoc.(MQ254).SS{pairidx, mdupidx} == 2;
+            else
+                noMQ_somatic = RnaVarLoc.(noMQ).SS{pairidx, mdupidx}(:,2) == 2;
+                MQ254_somatic = RnaVarLoc.(MQ254).SS{pairidx, mdupidx}(:,2) == 2;
+            end
+            tmp = { RnaVarLoc.(noMQ).lockey{pairidx, mdupidx}(~noMQ_somatic), ...
+                RnaVarLoc.(noMQ).lockey{pairidx, mdupidx}(noMQ_somatic), ...  
+                RnaVarLoc.(MQ254).lockey{pairidx, mdupidx}(MQ254_somatic), ...
+                RnaVarLoc.(MQ254).lockey{pairidx, mdupidx}(~MQ254_somatic)};
+            fixvenn(tmp, 'label', label, 'numfontsize', 12, 'labelfontsize', 14);
+            title([patienttb{pairidx,1}, ' ', mduplabel{mdupidx}], 'fontsize', 14);
+        end
+        if savefig
+            %filename = [figdir sprintf('venn effect of MQ, %s, %s', mduplabel{mdupidx}, callers{calleridx})];
+            filename = [figdir sprintf('venn effect of MQ100, %s, %s', mduplabel{mdupidx}, callers{calleridx})];
+            plot2svg([filename '.svg'], gcf);
+        end
+    end
+end
 %%
 % effect of q50: uniquely mapped reads 
 
@@ -456,6 +505,41 @@ for pidx = 1:length(DnaVarLoc.pid)
         end
     end
 end
+
+%%
+%percentage of RNA editing
+if ~exist('RNA_EDIT', 'var')
+    load RNA_EDIT.mat
+    editlocindex = gloc2index(RNA_EDIT.loc);
+end
+caller = {'mutect_MQ100', 'varscan_def', 'sniper_def'};
+passkey = strkey('PASS');
+
+for i = 1:length(caller)
+    graphdata = zeros(2,4);
+    for sampidx = 1:4
+        if strcmp(caller{i}, 'mutect_MQ100')
+            somatic = RnaVarLoc.(caller{i}).filter{sampidx,1} == passkey;
+        elseif strcmp(caller{i}, 'varscan_def')
+            somatic = RnaVarLoc.(caller{i}).filter{sampidx,1} == passkey & ...
+                RnaVarLoc.(caller{i}).SS{sampidx, 1} == 2;
+        else
+            somatic = RnaVarLoc.(caller{i}).SS{sampidx,1}(:,2) == 2;
+        end
+        editsite = ismember(RnaVarLoc.(caller{i}).locindex{sampidx,1}, editlocindex);
+        graphdata(:,sampidx) = [sum(editsite & ~somatic), sum(editsite & somatic)] ./ length(editsite) * 100;
+    end
+    subplot(2,2,i)
+    bar(graphdata', 'stacked');
+    if i == 3
+        legend({'others', 'somatic'});
+    end
+    xlim([0 5]);
+    xlabel('tumor sample');
+    ylabel('% variants in edited sites');
+    title(strrep(caller{i}, '_', ' '));
+end
+
 
 %%
 % DNA vs RNA, DNA-1/2/3-callers overlap RNA, 4 sets: DNA + 3 callers,  2x2
