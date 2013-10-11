@@ -70,11 +70,18 @@ def createTempLocFile(args, validChrms):
     
     return locfile, removelater
 
-def pileupToCount(samout, out, minread, stranded=True):
+def pileupToCount(samout, out, minread, stranded=True, tableformat=False):
     #pileup special chars in read_bases: ^: start of read, followed by an additional char for mapping qual
     # $: end of read
     # > or < suggests non-coding region
     excludePattern = re.compile('(\^.)|(\$)')
+    if stranded:
+        baseLabels = ['>', 'A', 'T', 'C', 'G', 'N', '<', 'a', 't', 'c', 'g', 'n']
+    else:
+        baseLabels = ['>', 'A', 'T', 'C', 'G', 'N']
+
+    if tableformat:
+        out.write('\t'.join(['chr', 'pos', 'ref', '#read']) + '\t' + '\t'.join(baseLabels) + '\n')
     line = samout.readline()
 #    count = 1
     while line:
@@ -87,10 +94,14 @@ def pileupToCount(samout, out, minread, stranded=True):
             #count
             baseCount = Counter( re.sub(excludePattern, '', line[4] ))   #dict with counts and letters
             baseCount.update(indels)
-            baseCount = OrderedDict( sorted(baseCount.items(), key=lambda t:t[0]) )
-            #decide what to write to the output: chr, pos, ref, total_read, base_count_string
-            baseCountString = ''.join([ k+'%s'%v for k, v in baseCount.iteritems()])
-            out.write('\t'.join(line[:4]) + '\t' + baseCountString + '\n')            
+            if tableformat:
+                countstring = '\t'.join( [ '%s'%baseCount[b] for b in baseLabels ] )
+                out.write('\t'.join(line[:4]) + '\t' + countstring + '\n')
+            else:
+                baseCount = OrderedDict( sorted(baseCount.items(), key=lambda t:t[0]) )
+                #decide what to write to the output: chr, pos, ref, total_read, base_count_string
+                baseCountString = ''.join([ k+'%s'%v for k, v in baseCount.iteritems()])
+                out.write('\t'.join(line[:4]) + '\t' + baseCountString + '\n')            
 #        count = count + 1
         line = samout.readline()
     return
@@ -109,17 +120,18 @@ def closefiles(files):
     return
 
 argp = argparse.ArgumentParser(prog='pileupCount.py')
-argp.add_argument('-d', nargs='?', default=10000, metavar='INT', type=int, help='INT for samtools mpileup, read maximally INT reads per bam [10,000]' )
-argp.add_argument('-q', nargs='?', default=0, metavar='INT',  type=int, help='INT for samtools mpileup, min mapping quality for an alignment to be used [0]' )
-argp.add_argument('-Q', nargs='?', default=13, metavar='INT', type=int, help='INT for samtools mpileup, mim base quality for a base to be considered [13]' )
-argp.add_argument('-f', nargs='?', default='/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa', metavar='file', help='faidx-indexed reference fasta' )
-argp.add_argument('-loc', nargs='?', metavar='file', required=True, help='file, file can be VCF or bed, [chr, pos] as columns')
-argp.add_argument('-bam', nargs='?', metavar='file', required=True, help='file, bam file for pileup')
-argp.add_argument('-r', nargs='?', metavar='INT', required=True, type=int, default=10, help='min reads required for each base')
-argp.add_argument('-o', nargs='?', default='test.out', metavar='file', help='file name for the output, [<bam>.out]')
+argp.add_argument('-d', default=10000, metavar='INT', type=int, help='INT for samtools mpileup, read maximally INT reads per bam [10,000]' )
+argp.add_argument('-q', default=0, metavar='INT',  type=int, help='INT for samtools mpileup, min mapping quality for an alignment to be used [0]' )
+argp.add_argument('-Q', default=13, metavar='INT', type=int, help='INT for samtools mpileup, mim base quality for a base to be considered [13]' )
+argp.add_argument('-f', type=str, default='/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa', metavar='file', help='faidx-indexed reference fasta' )
+argp.add_argument('-loc', type=str, metavar='file', required=True, help='file, file can be VCF or bed, [chr, pos] as columns')
+argp.add_argument('-bam', type=str, metavar='file', required=True, help='file, bam file for pileup')
+argp.add_argument('-r',  metavar='INT', required=True, type=int, default=10, help='min reads required for each base')
+argp.add_argument('-o', type=str, default='test.out', metavar='file', help='file name for the output, [<bam>.out]')
+argp.add_argument('-tableformat', action='store_true', help='make table output instead; this option is turned off by default')
 argp.add_argument('-stranded', action='store_true', help='a switch to specify if it is strand-specific data, [false]' )
-argp.add_argument('-samtools', nargs='?', default='/data/NYGC/Software/samtools/samtools-0.1.19/samtools', help='samtools path, [/data/NYGC/Software/samtools/samtools-0.1.19]')
-argp.add_argument('-tmpdir', nargs='?', default='./', help='path for temporary files, [./]')
+argp.add_argument('-samtools', type=str, default='/data/NYGC/Software/samtools/samtools-0.1.19/samtools', help='samtools path, [/data/NYGC/Software/samtools/samtools-0.1.19]')
+argp.add_argument('-tmpdir', type=str, default='./', help='path for temporary files, [./]')
 #argp.add_argument('-refbasecheck', nargs='?', action='store_true', help='a switch to turn on double checking of reference bases in vcf and in genome; only valid if location file is in vcf format, [false]')
 argp.add_argument('-samtools_mpileup_option', nargs='?', metavar='value', help='options that are passed to samtools mpileup')
 
@@ -150,7 +162,7 @@ try:
     sampipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)#, stderr=subprocess.PIPE)
     samout = sampipe.stdout #, sampipe.stderr
     out = open(args.o, 'w')
-    pileupToCount(samout, out, args.r, stranded=args.stranded)
+    pileupToCount(samout, out, args.r, stranded=args.stranded, tableformat=args.tableformat)
         
     if len(tmpfiles) > 0:
         #remove temp file

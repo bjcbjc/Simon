@@ -24,6 +24,184 @@ def getAvailableParas():
     return tb
 
 
+def recalAlign(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+
+    ftread = 'samtools view -bh -q {-q} -F {-F} {input} -o {output}.flt.bam '
+    bamindex = 'samtools index {output}.flt.bam '
+    gatk = '{java} -Xmx{mem} -jar {gatkjar} -R {reference} '
+    indeltarget = '-T RealignerTargetCreator -I {output}.flt.bam -o {output}.indel.intervals -known {KGMILLS} -known {KGINDEL} '
+    indelrealign = '-T IndelRealigner -I {output}.flt.bam -known {KGMILLS} -known {KGINDEL} --targetIntervals {output}.indel.intervals -o {output}.flt.realigned.bam -compress 0 '
+    baserecal = '-T BaseRecalibrator -I {output}.flt.realigned.bam -knownSites {DBSNP} -knownSites {KGMILLS} -knownSites {KGINDEL} -o {output}.recal.table -nct {num_thread} '
+    baserecalbam = '-T PrintReads -I {output}.flt.realigned.bam --BQSR {output}.recal.table -o {output}.flt.realigned.recal.bam -nct {num_thread}'
+
+    cmdset = configRobot.makeParasList(cmdset, ['sample'])
+    prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
+    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+    samples = configRobot.popParas(cmdset, ['sample'])
+    mem = cmdset['mem']
+    input = cmdset.pop('input')
+
+    if '-t' not in cmdset: cmdset['-t'] = 1
+    if int(cmdset['-t']) > 1: #multiple threads per job
+        sgeopt = ['-pe make ' + cmdset['-t']]
+    else:
+        sgeopt = []
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    for sample in samples: #one job per sample
+        sampletmpoutpath = tmpoutpath + '_'.join([prefix, sample, randstr()]) + '/'
+        jobprefix = prefix + sample
+        cmdset['input'] = input.format(sample=inputpath+sample)
+        cmdset['output'] = sampletmpoutpath + input.format(sample=sample).replace('.bam','')
+
+        CMDs = []
+        if 'toShell' in cmdset.keys():
+            CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
+
+        CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+
+        CMDs.append( ftread.format(**cmdset) )
+        CMDs.append( bamindex.format(**cmdset) )
+        CMDs.append( (gatk+indeltarget).format(**cmdset) )
+        CMDs.append( (gatk+indelrealign).format(**cmdset) )
+        CMDs.append( (gatk+baserecal).format(**cmdset) )
+        CMDs.append( (gatk+baserecalbam).format(**cmdset) )
+
+        CMDs.append( cmdGenerator.formatCmd( 'mv %s%s.realigned* %s'%(sampletmpoutpath, sample, outputpath) )) 
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
+
+        jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
+    return jobmanager
+
+
+def bwaalign(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+
+    fastqstream = '<(zcat {fastq} | sed -e "s/ \([12]\):\([YN]\)/:\\1 \\1:\\2/")' #retain pair info
+    bwaaln = ' {bwaprog} aln -Y -t {-t} {reference} {fastq} > {outputfile}.sai'
+    bwasamse = ' {bwaprog} samse -n 4 '
+    bwasamse_input = ' {reference} {outputfile}.sai {fastq} '
+    coorconvert = '{java} -Xmx{mem} -cp /data/NYGC/Resources/SNPiR/ convertCoordinates - | samtools view -Sb - > {outputfile}.cord.bam'
+    picard = '{java} -Xmx{mem} -jar {picardpath}{picardprog} TMP_DIR={tmpdir} VALIDATION_STRINGENCY=SILENT CREATE_INDEX=true '
+    picard_addRG = ' RGID={fqid} RGLB={sample} RGPL=Illumina RGPU={barcode} RGSM={sample} RGCN=NYGC RGDS={fqinfo} SORT_ORDER=coordinate INPUT={outputfile}.cord.bam OUTPUT={outputfile}.sorted.bam '
+    picard_merge = ' OUTPUT={sample}.sorted.bam ASSUME_SORTED=true USE_THREADING=true '
+    picard_mdup = ' INPUT={sample}.sorted.bam OUTPUT={sample}.sorted.mdup.bam METRICS_FILE={sample}.sorted.mdup.metrics ASSUME_SORTED=true '
+
+
+    cmdset = configRobot.makeParasList(cmdset, ['sample'])
+    prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
+    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+    samples = configRobot.popParas(cmdset, ['sample'])
+    mem = cmdset['mem']
+
+    if '-t' not in cmdset: cmdset['-t'] = 1
+    if int(cmdset['-t']) > 1: #multiple threads per job
+        sgeopt = ['-pe make ' + cmdset['-t']]
+    else:
+        sgeopt = []
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    for sample in samples: #one job per sample
+        sampleinputpath = inputpath.format(sample=sample)
+        f = popen('ls %s*.fastq.gz'%sampleinputpath)
+        readfns = f.read().split()
+        f.close()
+        fqid = 0
+        jobprefix = prefix + sample
+        sampletmpoutpath = tmpoutpath + '_'.join([prefix, sample, randstr()]) + '/'
+        CMDs = []
+        if 'toShell' in cmdset.keys():
+            CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
+
+        CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+
+        allbams = []
+        for fastq in readfns:
+            tokens = fastq.split('/')[-1].split('_')
+            barcode = tokens[1]
+            fqinfo = '_'.join(tokens[2:]).replace('.fastq.gz','')
+            fqid += 1
+            outputfile = sampletmpoutpath + fastq.split('/')[-1].replace('.fastq.gz', '')
+            CMDs.append( bwaaln.format(fastq=fastqstream.format(fastq=fastq), outputfile=outputfile, **cmdset) )
+            CMDs.append( (bwasamse + bwasamse_input + ' | ' + coorconvert).format( \
+                        outputfile=outputfile, fastq=fastqstream.format(fastq=fastq), **cmdset) )
+#            CMDs.append( bwasamse.format(**cmdset) + \
+#                         bwasamse_input.format(outputfile=outputfile, fastq=fastqstream.format(fastq=fastq), **cmdset) + \
+#                         ' | ' + \
+#                         coorconvert.format(outputfile=outputfile, **cmdset) )
+            CMDs.append( picard.format(picardprog='AddOrReplaceReadGroups.jar', tmpdir=sampletmpoutpath, **cmdset) + \
+                       picard_addRG.format(fqid=fqid, sample=sample, barcode=barcode, fqinfo=fqinfo, outputfile=outputfile) )
+            allbams.append(outputfile +'.sorted.bam')
+
+        CMDs.append( picard.format(picardprog='MergeSamFiles.jar', tmpdir=sampletmpoutpath, **cmdset) + \
+                   picard_merge.format(sample=sampletmpoutpath+sample) + ' INPUT=' + ' INPUT='.join(allbams) )
+        CMDs.append( picard.format(picardprog='MarkDuplicates.jar', tmpdir=sampletmpoutpath, **cmdset) + \
+                     picard_mdup.format(sample=sampletmpoutpath+sample) )
+    
+        CMDs.append( cmdGenerator.formatCmd( 'mv %s%s.sorted.mdup* %s'%(sampletmpoutpath, sample, outputpath) )) 
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
+
+        jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
+    return jobmanager
+                    
+
+def varPositionInRead(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+
+    cmd, mem, time, prefix, bam, vcf = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix', 'bam', 'vcf'])
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath) 
+    bampath = cmdGenerator.checkPath(cmdset.pop('bampath'))
+    vcfpath = cmdGenerator.checkPath(cmdset.pop('vcfpath'))
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+    pycmd = '/data/NYGC/Software/python/Python-2.7.3/python ' + cmdGenerator.checkPath(cmdset.pop('programpath')) + cmdset.pop('pyprog')
+    
+    if type(bam) != type([]) and type(bam) != type(()):
+        bam = [bam]
+    if type(vcf) != type([]) and type(vcf) != type(()):
+        vcf = [vcf]
+
+    for sampi in range(len(bam)):
+        paraset = copy.deepcopy(cmdset)        
+        bamfn = bam[sampi]
+        vcffn = vcf[sampi]
+        jobtag = vcffn.replace('_Aligned.out.WithReadGroup.sorted','').replace('.bam','') + '_' + bamfn.replace('_Aligned.out.WithReadGroup.sorted','')
+        jobfnprefix = prefix + '_' + jobtag
+
+        outputfile = jobtag + '.varreadpos.gz'
+
+        CMDs = []
+        sampletmpoutpath = tmpoutpath + randstr() + '/'
+        CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+    
+        paraset['-o'] =  sampletmpoutpath + outputfile
+        paraset['-bam'] = bampath + bamfn
+        paraset['-vcf'] = vcfpath + vcffn
+
+        CMDs.append( cmdGenerator.formatCmd( pycmd, paraset ) )
+        CMDs.append( cmdGenerator.formatCmd( 'mv %s %s'%(paraset['-o'], outputpath) ) )
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobfnprefix, jobmanager.ext, outputpath)) )
+
+        jobmanager.createJob(jobfnprefix, CMDs, outpath = outputpath, outfn = jobfnprefix, trackcmd=False)
+    return jobmanager
+
 
 def bowtie(cmdset, runmode='test'):
     if runmode == 'test':

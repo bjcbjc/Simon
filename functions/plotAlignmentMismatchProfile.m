@@ -1,5 +1,5 @@
-function t = plotAlignmentMismatchProfile( fns, outdir )
-    
+function [t, nread] = plotAlignmentMismatchProfile( fns, outdir, doplot )
+    if nargin < 3, doplot = true; end
     if ischar(fns)
         fns = {fns};
     end
@@ -24,6 +24,9 @@ function t = plotAlignmentMismatchProfile( fns, outdir )
             [~, si] = ismember(t.rowname, subt.rowname);
             t.text = t.text + subt.text(si,:);
         end        
+    end
+    if ~doplot
+        return
     end
     n = size(t.text,2);
     %first column data: in positional, it's position 0, so all counts are
