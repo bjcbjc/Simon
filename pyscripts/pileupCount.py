@@ -86,6 +86,7 @@ def pileupToCount(samout, out, minread, stranded=True, tableformat=False):
         out.write('\t'.join(['chr', 'pos', 'ref', '#read']) + '\t' + '\t'.join(baseLabels) + '\n')
     line = samout.readline()
     count = 1
+    outbuffer = ''
     while line:
         line = line.split() #chr, pos, ref, #read, read_bases, read_qual
 
@@ -102,14 +103,21 @@ def pileupToCount(samout, out, minread, stranded=True, tableformat=False):
 
             if tableformat:
                 countstring = '\t'.join( [ '%s'%baseCount[b] for b in baseLabels ] )
-                out.write('\t'.join(line[:4]) + '\t' + countstring + '\n')
+                #out.write('\t'.join(line[:4]) + '\t' + countstring + '\n')
+                outbuffer = outbuffer + '\t'.join(line[:4]) + '\t' + countstring + '\n'
             else:
                 baseCount = OrderedDict( sorted(baseCount.items(), key=lambda t:t[0]) )
                 #decide what to write to the output: chr, pos, ref, total_read, base_count_string
                 baseCountString = ''.join([ k+'%s'%v for k, v in baseCount.iteritems()])
-                out.write('\t'.join(line[:4]) + '\t' + baseCountString + '\n')            
+                #out.write('\t'.join(line[:4]) + '\t' + baseCountString + '\n')            
+                outbuffer = outbuffer + '\t'.join(line[:4]) + '\t' + baseCountString + '\n'
         count = count + 1
+        if count%100 == 0:
+            out.write(outbuffer)
+            outbuffer = ''
         line = samout.readline()
+    if outbuffer != '':
+        out.write(outbuffer)
     return
 
 def bamChrms(args):
