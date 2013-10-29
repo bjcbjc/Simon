@@ -655,11 +655,42 @@ classdef VCF < dynamicprops
         end
         
         function keys = lockey(obj)
-            keys = textscan(int2str(obj.variantAttr_mtx(:,1)'), '%s');
-            keys = keys{1};
-            keys = strcat(obj.variantAttr_cell(:,1), '-', keys);
+            keys = gloc2index( numericchrm(obj.variantAttr_cell(:,1)), obj.variantAttr_mtx(:,1) );
+%             keys = textscan(int2str(obj.variantAttr_mtx(:,1)'), '%s');
+%             keys = keys{1};
+%             keys = strcat(obj.variantAttr_cell(:,1), '-', keys);
 %             keys = strcat(obj.variantAttr_cell(:,1), '-', ...
 %                 arrayfun(@num2str, obj.variantAttr_mtx(:,1), 'unif', 0));
+        end
+        
+        function [change, count, barhandle] = baseChangeChart(obj, filter)
+            if nargin < 2, filter = []; end
+            [~, colidx] = ismember({'REF', 'ALT'}, obj.attrName_cell);
+            
+            vi = all(cellfun(@(x) length(x), obj.variantAttr_cell(:, colidx))==1, 2);
+            if ~isempty(filter)
+                vi = vi & filter;
+            end
+            
+            base = {'A', 'C', 'G', 'T'};
+            count = zeros(12, 1);
+            change = cell(12, 1);
+            idx = 0;
+            for i = 1:4
+                for j = 1:4
+                    if i == j, continue; end
+                    idx = idx + 1;
+                    change{idx} = [base{i} '->' base{j}];
+                    count(idx) = sum( ...
+                        strcmpi( obj.variantAttr_cell(vi,colidx(1)), base{i} ) & ...
+                        strcmpi(obj.variantAttr_cell(vi,colidx(2)), base{j}) );
+                end
+            end
+            barhandle = barh(count);
+            set(gca, 'ytick', 1:length(change), 'yticklabel', change);
+            xlabel('count');
+            ylim([0.5, 12.5]);
+            title(obj.sample{2});
         end
     end
     

@@ -1,24 +1,373 @@
+vcfFilterByBed.DNA.snpirbwa:
+cmd	filterVCFByBed
+toShell	export PATH=$PATH:/data/NYGC/Software/bedops/bin/
+vcfpath	/nethome/bjchen/Projects/Simon/DNA/vcf/originals/
+bedpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+outputpath	/nethome/bjchen/Projects/Simon/DNA/vcf/filterByRNACov_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	vcfbed
+vcf	130342-1T--130342-7N.indel.varscan.v2.3.6.vcf.sorted; 130342-1T--130342-7N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 130342-1T--130342-7N.snv.mutect.v1.1.4.vcf.sorted; 130342-1T--130342-7N.snv.somaticsniper.vcf.sorted; 130342-1T--130342-7N.snv.varscan.v2.3.6.vcf.sorted; 132540-1-T--132540-10-N.indel.varscan.v2.3.6.vcf.sorted; 132540-1-T--132540-10-N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 132540-1-T--132540-10-N.snv.mutect.v1.1.4.vcf.sorted; 132540-1-T--132540-10-N.snv.somaticsniper.vcf.sorted; 132540-1-T--132540-10-N.snv.varscan.v2.3.6.vcf.sorted; 138381-2-T--138381-4-N.indel.varscan.v2.3.6.vcf.sorted; 138381-2-T--138381-4-N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 138381-2-T--138381-4-N.snv.mutect.v1.1.4.vcf.sorted; 138381-2-T--138381-4-N.snv.somaticsniper.vcf.sorted; 138381-2-T--138381-4-N.snv.varscan.v2.3.6.vcf.sorted
+bed	Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N
+bedname	{bed}.sorted.mdup.flt.realigned.recal.genome.cov
+mincov	1; 6; 11
+overwrite	True
+mem	16G
+time	24::
+
+
+varCall.mutect.bwa:
+cmd	varCall
+callertag	mutect
+caller	muTect-1.1.4/muTect-1.1.4.jar
+toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
+programpath	/data/NYGC/Software/muTect/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/mutect_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	mutect
+--baqGapOpenPenalty	40
+--num_threads	1
+--reference_sequence	/data/NYGC/Resources/SNPiR/SEQ/hg19.fa
+-Djava.io.tmpdir	=/scratch/BJC_TMP/
+--analysis_type	MuTect
+--dbsnp	/nethome/bjchen/Projects/Simon/dbsnp.leftAligned.hg19order.vcf
+--cosmic	/nethome/bjchen/Projects/Simon/hg19_cosmic_v54_120711.chrTag.vcf
+--intervals	/nethome/bjchen/Projects/Simon/GRCh37_64.chrom.chrTag.intervals
+bam	=sample
+normalsample	Sample_138381-4N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam
+tumorsample	Sample_138381-2T.sorted.mdup.flt.realigned.recal.bam; Sample_132540-1T.sorted.mdup.flt.realigned.recal.bam; Sample_137064-1T.sorted.mdup.flt.realigned.recal.bam; Sample_139508-1T.sorted.mdup.flt.realigned.recal.bam
+overwrite	True
+mem	24G
+time	24::
+
+varCall.varscan.bwa:
+cmd	varCall
+toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19
+toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
+callertag	varscan
+caller	VarScan.v2.3.6/VarScan.v2.3.6.jar
+programpath	/data/NYGC/Software/VarScan/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/varscan_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	varscan
+-f	/data/NYGC/Resources/SNPiR/SEQ/hg19.fa
+-q	1
+-Djava.io.tmpdir	=/scratch/BJC_TMP/
+bam	=sample
+normalsample	Sample_138381-4N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam
+tumorsample	Sample_138381-2T.sorted.mdup.flt.realigned.recal.bam; Sample_132540-1T.sorted.mdup.flt.realigned.recal.bam; Sample_137064-1T.sorted.mdup.flt.realigned.recal.bam; Sample_139508-1T.sorted.mdup.flt.realigned.recal.bam
+overwrite	True
+mem	27G
+time	24::
+
+
+#Sniper call for RNA
+varCall.sniper.bwa:
+cmd	varCall
+callertag	sniper
+caller	SomaticSniper-1.0.2/bin/bam-somaticsniper
+programpath	/data/NYGC/Software/SomaticSniper/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/sniper_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	sniper
+-f	/data/NYGC/Resources/SNPiR/SEQ/hg19.fa
+-q	1
+-F	vcf
+iterparas	''; -J -s 0.01
+bam	=sample
+normalsample	Sample_138381-4N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam
+tumorsample	Sample_138381-2T.sorted.mdup.flt.realigned.recal.bam; Sample_132540-1T.sorted.mdup.flt.realigned.recal.bam; Sample_137064-1T.sorted.mdup.flt.realigned.recal.bam; Sample_139508-1T.sorted.mdup.flt.realigned.recal.bam
+overwrite	True
+mem	24G
+time	24::
+
+
+#Strelka call for RNA
+varCall.strelka.bwa:
+cmd	varCall
+callertag	strelka
+caller	strelka-v1.0.12/bin/configureStrelkaWorkflow.pl
+programpath	/data/NYGC/Software/strelka/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/strelka_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	strelka
+--ref	/data/NYGC/Resources/SNPiR/SEQ/hg19.fa
+--config	/nethome/bjchen/Projects/Simon/strelka_config_rna.ini
+bam	=sample
+normalsample	Sample_138381-4N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam
+tumorsample	Sample_138381-2T.sorted.mdup.flt.realigned.recal.bam; Sample_132540-1T.sorted.mdup.flt.realigned.recal.bam; Sample_137064-1T.sorted.mdup.flt.realigned.recal.bam; Sample_139508-1T.sorted.mdup.flt.realigned.recal.bam
+overwrite	True
+mem	16G
+time	24::
+
+
+snpir.filter.RNA.STAR:
+cmd	snpirfilter
+perl	/data/NYGC/Software/perl/perls/perl-5.18.0/bin/perl
+snpirpath	/data/NYGC/Resources/SNPiR/
+bedtoolspath	/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/
+geneannotation	/data/NYGC/Resources/SNPiR/ANNT/all_annotation.hg19
+repeatmask	/data/NYGC/Resources/SNPiR/ANNT/repeatmasker.hg19.bed
+rnaedit	/data/NYGC/Resources/SNPiR/ANNT/Human_AG_all_hg19.bed
+bampath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+vcfpath	/nethome/bjchen/Projects/Simon/RNA/gatk_bwa/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/gatk_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+varqual	20
+prefix	snpirfilter
+vcfname	{vcf}.variant.vcf
+bamname	{bam}_Aligned.out.WithReadGroup.sorted.mdup.bam
+output	{bam}
+vcf	132540-10N; 138381-4N; 132540-1T; 138381-2T; 137064-1T; 139508-1T; 
+bam	Sample_132540-10N; Sample_138381-4N; Sample_132540-1T; Sample_138381-2T; Sample_137064-1T; Sample_139508-1T
+overwrite	True
+mem	12G
+time	24::
+
+snpir.genotyper.RNA.STAR:
+cmd	GATK_genotyper
+java	/data/NYGC/Software/java/jre1.7.0_25/bin/java
+gatkjar	/data/NYGC/Software/GenomeAnalysisTK/GenomeAnalysisTK-2.7-2-g6bda569/GenomeAnalysisTK.jar 
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/gatk_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+KGMILLS	/data/NYGC/Resources/GatkBundle/2.5/hg19/Mills_and_1000G_gold_standard.indels.hg19.vcf
+KGINDEL	/data/NYGC/Resources/GatkBundle/2.5/hg19/1000G_phase1.indels.hg19.vcf
+DBSNP	/data/NYGC/Resources/GatkBundle/2.5/hg19/dbsnp_137.hg19.vcf
+num_core	8
+num_thread_core	4
+-glm	BOTH
+-stand_call_conf	0
+-stand_emit_conf	0
+prefix	snpirgeno
+input	{sample}_Aligned.out.WithReadGroup.sorted.mdup.bam
+groupname	132540-10N; 138381-4N; 132540-1T; 138381-2T; 137064-1T; 139508-1T; 132540; 138381; 132540-138381-N; 132540-138381-T; 132540-138381-all
+group	Sample_132540-10N; Sample_138381-4N; Sample_132540-1T; Sample_138381-2T; Sample_137064-1T; Sample_139508-1T; Sample_132540-10N, Sample_132540-1T, Sample_137064-1T, Sample_139508-1T; Sample_138381-4N, Sample_138381-2T; Sample_132540-10N, Sample_138381-4N; Sample_132540-1T, Sample_137064-1T, Sample_139508-1T, Sample_138381-2T; Sample_132540-10N, Sample_138381-4N, Sample_132540-1T, Sample_137064-1T, Sample_139508-1T, Sample_138381-2T
+overwrite	True
+mem	96G
+time	24::
+
+snpir.recalalign.RNA.STAR:
+cmd	recalAlign
+toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19 
+java	/data/NYGC/Software/java/jre1.7.0_25/bin/java
+gatkjar	/data/NYGC/Software/GenomeAnalysisTK/GenomeAnalysisTK-2.7-2-g6bda569/GenomeAnalysisTK.jar 
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+KGMILLS	/data/NYGC/Resources/GatkBundle/2.5/hg19/Mills_and_1000G_gold_standard.indels.hg19.vcf
+KGINDEL	/data/NYGC/Resources/GatkBundle/2.5/hg19/1000G_phase1.indels.hg19.vcf
+DBSNP	/data/NYGC/Resources/GatkBundle/2.5/hg19/dbsnp_137.hg19.vcf
+num_thread	8
+-q	20
+-F	1028
+prefix	snpirrecal
+input	{sample}_Aligned.out.WithReadGroup.sorted.mdup.bam
+sample	Sample_132540-10N; Sample_132540-1T; Sample_137064-1T; Sample_139508-1T; Sample_138381-4N; Sample_138381-2T
+overwrite	True
+mem	64G
+time	24::
+
+
+
+
+vcfFilterByBed.DNA.star:
+cmd	filterVCFByBed
+toShell	export PATH=$PATH:/data/NYGC/Software/bedops/bin/
+vcfpath	/nethome/bjchen/Projects/Simon/DNA/vcf/originals/
+bedpath	/nethome/bjchen/Projects/Simon/RNA/bam/
+outputpath	/nethome/bjchen/Projects/Simon/DNA/vcf/filterByRNACov/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	vcfbed
+vcf	130342-1T--130342-7N.indel.varscan.v2.3.6.vcf.sorted; 130342-1T--130342-7N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 130342-1T--130342-7N.snv.mutect.v1.1.4.vcf.sorted; 130342-1T--130342-7N.snv.somaticsniper.vcf.sorted; 130342-1T--130342-7N.snv.varscan.v2.3.6.vcf.sorted; 132540-1-T--132540-10-N.indel.varscan.v2.3.6.vcf.sorted; 132540-1-T--132540-10-N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 132540-1-T--132540-10-N.snv.mutect.v1.1.4.vcf.sorted; 132540-1-T--132540-10-N.snv.somaticsniper.vcf.sorted; 132540-1-T--132540-10-N.snv.varscan.v2.3.6.vcf.sorted; 138381-2-T--138381-4-N.indel.varscan.v2.3.6.vcf.sorted; 138381-2-T--138381-4-N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 138381-2-T--138381-4-N.snv.mutect.v1.1.4.vcf.sorted; 138381-2-T--138381-4-N.snv.somaticsniper.vcf.sorted; 138381-2-T--138381-4-N.snv.varscan.v2.3.6.vcf.sorted
+bed	Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N
+bedname	{bed}_Aligned.out.WithReadGroup.sorted.genome.cov.sorted
+mincov	1; 6; 11
+overwrite	True
+mem	16G
+time	24::
+
+#Strelka call for RNA
+varCall.strelka:
+cmd	varCall
+callertag	strelka
+caller	strelka-v0.4.7/configureStrelkaWorkflow.pl
+programpath	/data/NYGC/Software/strelka/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	strelka
+--ref	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+--config	/nethome/bjchen/Projects/Simon/strelka_config_rna.ini
+bam	=sample
+normalsample	Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+#; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
+tumorsample	Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+#; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
+overwrite	True
+mem	16G
+time	24::
+
+
+
+#Virmid call for RNA
+varCall.virmid:
+cmd	varCall
+toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
+callertag	virmid
+caller	virmid-1.0.2/Virmid.jar
+programpath	/data/NYGC/Software/virmid/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	virmid
+-R	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+-c	10
+-C	200
+-q	50
+-f
+bam	=sample
+normalsample	Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
+tumorsample	Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
+overwrite	True
+mem	16G
+time	24::
+
+
+
+
+#VarScan call for RNA
+varCall.varscan.starqual:
+cmd	varCall
+toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19
+toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
+callertag	varscan
+caller	VarScan.v2.3.6/VarScan.v2.3.6.jar
+programpath	/data/NYGC/Software/VarScan/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	varscan_starQ
+-f	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+-q	50
+-Djava.io.tmpdir	=/scratch/BJC_TMP/
+bam	=sample
+normalsample	Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+#; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+tumorsample	Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+#; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+overwrite	True
+mem	27G
+time	24::
+
+
+#Sniper call for RNA
+varCall.sniper.starqual:
+cmd	varCall
+callertag	sniper
+caller	SomaticSniper-1.0.2/bin/bam-somaticsniper
+programpath	/data/NYGC/Software/SomaticSniper/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	sniper_starQ
+-f	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+-q	50
+-F	vcf
+iterparas	''; -J -s 0.01
+bam	=sample
+normalsample	Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+#; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+tumorsample	Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+#; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+overwrite	True
+mem	24G
+time	24::
+
+
+
+snpir.filter.RNA:
+cmd	snpirfilter
+perl	/data/NYGC/Software/perl/perls/perl-5.18.0/bin/perl
+snpirpath	/data/NYGC/Resources/SNPiR/
+bedtoolspath	/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/
+geneannotation	/data/NYGC/Resources/SNPiR/ANNT/all_annotation.hg19
+repeatmask	/data/NYGC/Resources/SNPiR/ANNT/repeatmasker.hg19.bed
+rnaedit	/data/NYGC/Resources/SNPiR/ANNT/Human_AG_all_hg19.bed
+inputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/data/NYGC/Resources/SNPiR/SEQ/hg19.fa
+varqual	20
+prefix	snpirfilter
+#vcf	test_132540-10N; test_132540-1T
+vcfname	{vcf}.variant.vcf
+#bam	test_132540-10N; test_132540-1T
+bamname	{bam}.sorted.mdup.flt.realigned.recal.bam
+output	{bam}
+vcf	132540-10N; 138381-4N; 132540-1T; 138381-2T; 137064-1T; 139508-1T; 
+bam	Sample_132540-10N; Sample_138381-4N; Sample_132540-1T; Sample_138381-2T; Sample_137064-1T; Sample_139508-1T
+overwrite	True
+mem	12G
+time	24::
+
+
+snpir.genotyper.RNA:
+cmd	GATK_genotyper
+java	/data/NYGC/Software/java/jre1.7.0_25/bin/java
+gatkjar	/data/NYGC/Software/GenomeAnalysisTK/GenomeAnalysisTK-2.7-2-g6bda569/GenomeAnalysisTK.jar 
+inputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/data/NYGC/Resources/SNPiR/SEQ/hg19.fa
+KGMILLS	/data/NYGC/Resources/GatkBundle/2.5/hg19/Mills_and_1000G_gold_standard.indels.hg19.vcf
+KGINDEL	/data/NYGC/Resources/GatkBundle/2.5/hg19/1000G_phase1.indels.hg19.vcf
+DBSNP	/data/NYGC/Resources/GatkBundle/2.5/hg19/dbsnp_137.hg19.vcf
+num_core	8
+num_thread_core	4
+-glm	BOTH
+#-out_mode	EMIT_ALL_CONFIDENT_SITES
+-stand_call_conf	0
+-stand_emit_conf	0
+prefix	snpirgeno
+input	{sample}.sorted.mdup.flt.realigned.recal.bam
+#group	test_132540-10N; test_132540-1T; test_132540-10N,test_132540-1T; 
+#groupname	test_132540-10N; test_132540-1T; test_132540
+groupname	132540-10N; 138381-4N; 132540-1T; 138381-2T; 137064-1T; 139508-1T; 132540; 138381; 132540-138381-N; 132540-138381-T; 132540-138381-all
+group	Sample_132540-10N; Sample_138381-4N; Sample_132540-1T; Sample_138381-2T; Sample_137064-1T; Sample_139508-1T; Sample_132540-10N, Sample_132540-1T, Sample_137064-1T, Sample_139508-1T; Sample_138381-4N, Sample_138381-2T; Sample_132540-10N, Sample_138381-4N; Sample_132540-1T, Sample_137064-1T, Sample_139508-1T, Sample_138381-2T; Sample_132540-10N, Sample_138381-4N, Sample_132540-1T, Sample_137064-1T, Sample_139508-1T, Sample_138381-2T
+overwrite	True
+mem	96G
+time	24::
+
+
 
 snpir.recalalign.RNA:
 cmd	recalAlign
 toShell	export PATH=$PATH:/data/NYGC/Software/samtools/samtools-0.1.19 
 java	/data/NYGC/Software/java/jre1.7.0_25/bin/java
+gatkjar	/data/NYGC/Software/GenomeAnalysisTK/GenomeAnalysisTK-2.7-2-g6bda569/GenomeAnalysisTK.jar 
 inputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
 outputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
 tmpoutpath	/scratch/BJC_TMP/
-reference	/data/NYGC/Resources/SNPiR/SEQ/hg19.withJunc45.fa
-KGMILLS	/data/NYGC/Resources/GatkBundle/1.5/b37/Mills_and_1000G_gold_standard.indels.b37.sites.va.vcf
-KGINDEL	/data/NYGC/Resources/GatkBundle/1.5/b37/1000G_phase1.indels.b37.va.vcf
-DBSNP	/data/NYGC/Resources/dbSNP/common_all.vcf.gz
-num_thread	1
+reference	/data/NYGC/Resources/SNPiR/SEQ/hg19.fa
+KGMILLS	/data/NYGC/Resources/GatkBundle/2.5/hg19/Mills_and_1000G_gold_standard.indels.hg19.vcf
+KGINDEL	/data/NYGC/Resources/GatkBundle/2.5/hg19/1000G_phase1.indels.hg19.vcf
+DBSNP	/data/NYGC/Resources/GatkBundle/2.5/hg19/dbsnp_137.hg19.vcf
+num_thread	8
 -q	20
 -F	1028
-prefix	snpirbwa
+prefix	snpirrecal
 input	{sample}.sorted.mdup.bam
-sample	test_132540-10N; test_132540-1T
-#sample	Sample_132540-10N; Sample_132540-1T; Sample_137064-1T; Sample_139508-1T; Sample_138381-4N; Sample_138381-2T
+#sample	test_132540-10N; test_132540-1T
+sample	Sample_132540-10N; Sample_132540-1T; Sample_137064-1T; Sample_139508-1T; Sample_138381-4N; Sample_138381-2T
 overwrite	True
-mem	8G
+mem	64G
 time	24::
 
 

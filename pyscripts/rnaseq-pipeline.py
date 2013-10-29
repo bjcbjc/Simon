@@ -24,6 +24,203 @@ def getAvailableParas():
     return tb
 
 
+def filterVCFByBed(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+
+    intersect =  'bedops -e -1  <(cat {vcfpath}{vcf} | /data/NYGC/Software/python/bin/python2.7 /data/NYGC/Software/bedops/bin/vcf2bed -) <( gawk \'$4>={mincov} {{print $0}}\' {bedpath}{bed}  ) > {output}.cov{mincov}.bed'
+
+    #intersect = '/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/bedtools intersect -a {vcfpath}{vcf} -b <(gawk \'{{OFS="\\t"; if($4 >={mincov}){{ print $0}}}}\' {bedpath}{bed}) -u -sorted > {output}.filtered.0.vcf'
+    union = 'sort -u {output1}.cov{mincov}.bed {output2}.cov{mincov}.bed > {output}.cov{mincov}.bed'
+
+    cmdset = configRobot.makeParasList(cmdset, ['vcf','bed', 'mincov'])
+    prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+    vcfs, beds = configRobot.popParas(cmdset, ['vcf', 'bed'])
+    mincovs = cmdset.pop('mincov')
+
+    mem = cmdset['mem']
+    sgeopt = []
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    for vcf, bed in zip(vcfs, beds): #one job per group
+        bed = [l.strip() for l in bed.split(',')]
+        cmdset['vcf'] = vcf
+
+        jobprefix = prefix + '_' + vcf
+        sampletmpoutpath = tmpoutpath + '_'.join([prefix, vcf, randstr()]) + '/'
+        outputbase = sampletmpoutpath + vcf
+        CMDs = []
+        if 'toShell' in cmdset.keys():
+            CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
+        CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+        for mincov in mincovs:
+            cmdset['mincov'] = mincov
+            for i in range(1,len(bed)+1):
+                cmdset['bed'] = cmdset['bedname'].format(bed=bed[i-1])
+                cmdset['output%d'%i] = outputbase + '_' + cmdset['bed'] 
+                CMDs.append( intersect.format(output=cmdset['output%d'%i], **cmdset ) )
+            CMDs.append( union.format( output=outputbase, **cmdset ) )
+        CMDs.append( cmdGenerator.formatCmd( 'mv {sampletmpoutpath}*.bed {outputpath}'.format(sampletmpoutpath=sampletmpoutpath, outputpath=outputpath) )) 
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
+
+        jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
+    return jobmanager
+
+def snpeff(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+
+    snpeffcmd = '{java} -Xmx{mem} -jar {snpeffpath}snpEff.jar eff -v -i vcf -o vcf -stats {output}.snpEff_summary.html -noLog -c {snpeffpath}/snpEff.config {annotation} {input}.variants.filtered.vcf > {output}.variants.snpEff.vcf'
+
+    cmdset = configRobot.makeParasList(cmdset, ['vcf','sample'])
+    prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
+    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+    vcfs, bams = configRobot.popParas(cmdset, ['vcf', 'bam'])
+
+    mem = cmdset['mem']
+    vcfname = cmdset.pop('vcfname')
+    bamname = cmdset.pop('bamname')
+    outputname = cmdset.pop('output')
+    if 'num_core' not in cmdset: cmdset['num_core'] = 1
+    if int(cmdset['num_core']) > 1: #multiple threads per job
+        sgeopt = ['-pe make ' + cmdset['num_core']]
+    else:
+        sgeopt = []
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    for vcf, bam in zip(vcfs, bams): #one job per group
+        cmdset['vcf'] = vcf
+        cmdset['bam'] = bam
+        cmdset['inputvcf'] = inputpath + vcfname.format( **cmdset )
+        cmdset['inputbam'] = inputpath + bamname.format( **cmdset )
+        jobprefix = prefix + outputname.format(**cmdset)
+        sampletmpoutpath = tmpoutpath + '_'.join([prefix, outputname.format(**cmdset), randstr()]) + '/'
+        cmdset['output'] = sampletmpoutpath + outputname.format( **cmdset )
+        CMDs = []
+        if 'toShell' in cmdset.keys():
+            CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
+        CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+        for subcmd in [vcfconvert, rmmismatch, rmrepeat, rmintron, rmhomopoly, blat, rmedit]:
+            CMDs.append( subcmd.format( **cmdset ) )
+        CMDs.append( cmdGenerator.formatCmd( 'mv {sampletmpoutpath}*txt {outputpath}'.format(sampletmpoutpath=sampletmpoutpath, outputpath=outputpath) )) 
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
+
+        jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
+    return jobmanager
+
+
+def snpirfilter(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+    
+    vcfconvert = 'bash {snpirpath}/convertVCF.sh {inputvcf} {output}.txt {varqual} '
+    rmmismatch = '{perl} {snpirpath}/filter_mismatch_first6bp.pl -infile {output}.txt -outfile {output}.rmhex.txt -bamfile {inputbam}'
+    rmrepeat = '''awk '{{OFS="\\t";$2=$2-1"\\t"$2;print $0}}' {output}.rmhex.txt | {bedtoolspath}/intersectBed -a stdin -b {repeatmask} -v | cut -f1,3-7 > {output}.rmhex.rmsk.txt'''
+    rmintron = '{perl} {snpirpath}/filter_intron_near_splicejuncts.pl -infile {output}.rmhex.rmsk.txt -outfile {output}.rmhex.rmsk.rmintron.txt -genefile {geneannotation}'
+    rmhomopoly = '{perl} {snpirpath}/filter_homopolymer_nucleotides.pl -infile {output}.rmhex.rmsk.rmintron.txt -outfile {output}.rmhex.rmsk.rmintron.rmhom.txt -refgenome {reference} '
+    blat = '{perl} {snpirpath}/BLAT_candidates.pl -infile {output}.rmhex.rmsk.rmintron.rmhom.txt -outfile {output}.rmhex.rmsk.rmintron.rmhom.rmblat.txt -bamfile {inputbam} -refgenome {reference} '
+    rmedit = '''awk '{{OFS="\\t";$2=$2-1"\\t"$2;print $0}}' {output}.rmhex.rmsk.rmintron.rmhom.rmblat.txt | {bedtoolspath}/intersectBed -a stdin -b {rnaedit} -v > {output}.rmhex.rmsk.rmintron.rmhom.rmblat.rmedit.bed'''
+
+    cmdset = configRobot.makeParasList(cmdset, ['vcf','sample'])
+    prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
+    vcfpath = cmdGenerator.checkPath(cmdset.pop('vcfpath'))
+    bampath = cmdGenerator.checkPath(cmdset.pop('bampath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+    vcfs, bams = configRobot.popParas(cmdset, ['vcf', 'bam'])
+
+    mem = cmdset['mem']
+    vcfname = cmdset.pop('vcfname')
+    bamname = cmdset.pop('bamname')
+    outputname = cmdset.pop('output')
+    if 'num_core' not in cmdset: cmdset['num_core'] = 1
+    if int(cmdset['num_core']) > 1: #multiple threads per job
+        sgeopt = ['-pe make ' + cmdset['num_core']]
+    else:
+        sgeopt = []
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    for vcf, bam in zip(vcfs, bams): #one job per group
+        cmdset['vcf'] = vcf
+        cmdset['bam'] = bam
+        cmdset['inputvcf'] = vcfpath + vcfname.format( **cmdset )
+        cmdset['inputbam'] = bampath + bamname.format( **cmdset )
+        jobprefix = prefix + outputname.format(**cmdset)
+        sampletmpoutpath = tmpoutpath + '_'.join([prefix, outputname.format(**cmdset), randstr()]) + '/'
+        cmdset['output'] = sampletmpoutpath + outputname.format( **cmdset )
+        CMDs = []
+        if 'toShell' in cmdset.keys():
+            CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
+        CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+        for subcmd in [vcfconvert, rmmismatch, rmrepeat, rmintron, rmhomopoly, blat, rmedit]:
+            CMDs.append( subcmd.format( **cmdset ) )
+        CMDs.append( cmdGenerator.formatCmd( 'mv {sampletmpoutpath}* {outputpath}'.format(sampletmpoutpath=sampletmpoutpath, outputpath=outputpath) )) 
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
+
+        jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
+    return jobmanager
+
+
+
+def GATK_genotyper(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+    
+    gatk = '{java} -Djava.io.tmpdir={javatmpdir} -Xmx{mem} -jar {gatkjar} -R {reference} '
+    genotyper = '-T UnifiedGenotyper -U ALLOW_N_CIGAR_READS {input} -o {output}.vcf --dbsnp {DBSNP} -nt {num_core} -nct {num_thread_core} -glm {-glm} -out_mode {-out_mode} -stand_call_conf {-stand_call_conf} -stand_emit_conf {-stand_emit_conf} '
+
+    cmdset = configRobot.makeParasList(cmdset, ['group'])
+    prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
+    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+    groups, groupnames = configRobot.popParas(cmdset, ['group', 'groupname'])
+
+    mem = cmdset['mem']
+    bamname = cmdset.pop('input')
+
+    if 'num_core' not in cmdset: cmdset['num_core'] = 1
+    if int(cmdset['num_core']) > 1: #multiple threads per job
+        sgeopt = ['-pe make ' + cmdset['num_core']]
+    else:
+        sgeopt = []
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    for sample, name in zip(groups, groupnames): #one job per group
+        sampletmpoutpath = tmpoutpath + '_'.join([prefix, name, randstr()]) + '/'
+        jobprefix = prefix + name
+        cmdset['input'] = ' '.join( ['-I ' + inputpath + bamname.format(sample=x) for x in re.split('[,\s]+', sample)] )
+        cmdset['output'] = sampletmpoutpath + name
+        cmdset['javatmpdir'] = sampletmpoutpath
+        CMDs = []
+        if 'toShell' in cmdset.keys():
+            CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
+
+        CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+        CMDs.append( (gatk+genotyper).format(**cmdset) )
+        CMDs.append( cmdGenerator.formatCmd( 'mv {sampletmpoutpath}*vcf* {outputpath}'.format(sampletmpoutpath=sampletmpoutpath, outputpath=outputpath) )) 
+        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
+
+        jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
+    return jobmanager
+
+
 def recalAlign(cmdset, runmode='test'):
     if runmode == 'test':
         createpath = False
@@ -32,11 +229,11 @@ def recalAlign(cmdset, runmode='test'):
 
     ftread = 'samtools view -bh -q {-q} -F {-F} {input} -o {output}.flt.bam '
     bamindex = 'samtools index {output}.flt.bam '
-    gatk = '{java} -Xmx{mem} -jar {gatkjar} -R {reference} '
-    indeltarget = '-T RealignerTargetCreator -I {output}.flt.bam -o {output}.indel.intervals -known {KGMILLS} -known {KGINDEL} '
-    indelrealign = '-T IndelRealigner -I {output}.flt.bam -known {KGMILLS} -known {KGINDEL} --targetIntervals {output}.indel.intervals -o {output}.flt.realigned.bam -compress 0 '
-    baserecal = '-T BaseRecalibrator -I {output}.flt.realigned.bam -knownSites {DBSNP} -knownSites {KGMILLS} -knownSites {KGINDEL} -o {output}.recal.table -nct {num_thread} '
-    baserecalbam = '-T PrintReads -I {output}.flt.realigned.bam --BQSR {output}.recal.table -o {output}.flt.realigned.recal.bam -nct {num_thread}'
+    gatk = '{java} -Djava.io.tmpdir={javatmpdir} -Xmx{mem} -jar {gatkjar} -R {reference} '
+    indeltarget = '-T RealignerTargetCreator -U ALLOW_N_CIGAR_READS -I {output}.flt.bam -o {output}.indel.intervals -known {KGMILLS} -known {KGINDEL} -nt {num_thread} '
+    indelrealign = '-T IndelRealigner -U ALLOW_N_CIGAR_READS -I {output}.flt.bam -known {KGMILLS} -known {KGINDEL} --targetIntervals {output}.indel.intervals -o {output}.flt.realigned.bam ' #-compress 0 '
+    baserecal = '-T BaseRecalibrator -U ALLOW_N_CIGAR_READS -I {output}.flt.realigned.bam -knownSites {DBSNP} -knownSites {KGMILLS} -knownSites {KGINDEL} -o {output}.recal.table -nct {num_thread} '
+    baserecalbam = '-T PrintReads -U ALLOW_N_CIGAR_READS -I {output}.flt.realigned.bam --BQSR {output}.recal.table -o {output}.flt.realigned.recal.bam -nct {num_thread}'
 
     cmdset = configRobot.makeParasList(cmdset, ['sample'])
     prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
@@ -47,9 +244,9 @@ def recalAlign(cmdset, runmode='test'):
     mem = cmdset['mem']
     input = cmdset.pop('input')
 
-    if '-t' not in cmdset: cmdset['-t'] = 1
-    if int(cmdset['-t']) > 1: #multiple threads per job
-        sgeopt = ['-pe make ' + cmdset['-t']]
+    if 'num_thread' not in cmdset: cmdset['num_thread'] = '1'
+    if int(cmdset['num_thread']) > 1: #multiple threads per job
+        sgeopt = ['-pe make ' + cmdset['num_thread']]
     else:
         sgeopt = []
 
@@ -60,6 +257,7 @@ def recalAlign(cmdset, runmode='test'):
         jobprefix = prefix + sample
         cmdset['input'] = input.format(sample=inputpath+sample)
         cmdset['output'] = sampletmpoutpath + input.format(sample=sample).replace('.bam','')
+        cmdset['javatmpdir'] = sampletmpoutpath
 
         CMDs = []
         if 'toShell' in cmdset.keys():
@@ -74,7 +272,7 @@ def recalAlign(cmdset, runmode='test'):
         CMDs.append( (gatk+baserecal).format(**cmdset) )
         CMDs.append( (gatk+baserecalbam).format(**cmdset) )
 
-        CMDs.append( cmdGenerator.formatCmd( 'mv %s%s.realigned* %s'%(sampletmpoutpath, sample, outputpath) )) 
+        CMDs.append( cmdGenerator.formatCmd( 'mv {sampletmpoutpath}{sample}*realigned*  {sampletmpoutpath}{sample}*.intervals {sampletmpoutpath}{sample}*.table {outputpath}'.format(sampletmpoutpath=sampletmpoutpath, sample=sample, outputpath=outputpath) )) 
         CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
 
         jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
@@ -91,11 +289,13 @@ def bwaalign(cmdset, runmode='test'):
     bwaaln = ' {bwaprog} aln -Y -t {-t} {reference} {fastq} > {outputfile}.sai'
     bwasamse = ' {bwaprog} samse -n 4 '
     bwasamse_input = ' {reference} {outputfile}.sai {fastq} '
-    coorconvert = '{java} -Xmx{mem} -cp /data/NYGC/Resources/SNPiR/ convertCoordinates - | samtools view -Sb - > {outputfile}.cord.bam'
-    picard = '{java} -Xmx{mem} -jar {picardpath}{picardprog} TMP_DIR={tmpdir} VALIDATION_STRINGENCY=SILENT CREATE_INDEX=true '
+    coorconvert = '{java} -Djava.io.tmpdir={javatmpdir} -Xmx{mem} -cp /data/NYGC/Resources/SNPiR/ convertCoordinates - | samtools view -Sb - > {outputfile}.cord.bam'
+    picard = '{java} -Djava.io.tmpdir={javatmpdir} -Xmx{mem} -jar {picardpath}{picardprog} TMP_DIR={tmpdir} VALIDATION_STRINGENCY=SILENT CREATE_INDEX=true '
     picard_addRG = ' RGID={fqid} RGLB={sample} RGPL=Illumina RGPU={barcode} RGSM={sample} RGCN=NYGC RGDS={fqinfo} SORT_ORDER=coordinate INPUT={outputfile}.cord.bam OUTPUT={outputfile}.sorted.bam '
     picard_merge = ' OUTPUT={sample}.sorted.bam ASSUME_SORTED=true USE_THREADING=true '
-    picard_mdup = ' INPUT={sample}.sorted.bam OUTPUT={sample}.sorted.mdup.bam METRICS_FILE={sample}.sorted.mdup.metrics ASSUME_SORTED=true '
+    picard_mdup = ' INPUT={sample}.sorted.bam OUTPUT={sample}.longheader.bam METRICS_FILE={sample}.sorted.mdup.metrics ASSUME_SORTED=true '
+    reheader = 'samtools reheader <(samtools view -H {sample}.longheader.bam | egrep -v ''chr\w+-'') {sample}.longheader.bam > {sample}.sorted.mdup.bam'
+    samindex = 'samtools index {sample}.sorted.mdup.bam'
 
 
     cmdset = configRobot.makeParasList(cmdset, ['sample'])
@@ -122,6 +322,7 @@ def bwaalign(cmdset, runmode='test'):
         fqid = 0
         jobprefix = prefix + sample
         sampletmpoutpath = tmpoutpath + '_'.join([prefix, sample, randstr()]) + '/'
+        cmdset['javatmpdir'] = sampletmpoutpath
         CMDs = []
         if 'toShell' in cmdset.keys():
             CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
@@ -150,7 +351,9 @@ def bwaalign(cmdset, runmode='test'):
                    picard_merge.format(sample=sampletmpoutpath+sample) + ' INPUT=' + ' INPUT='.join(allbams) )
         CMDs.append( picard.format(picardprog='MarkDuplicates.jar', tmpdir=sampletmpoutpath, **cmdset) + \
                      picard_mdup.format(sample=sampletmpoutpath+sample) )
-    
+        CMDs.append( reheader.format(sample=sampletmpoutpath+sample) )
+        CMDs.append( samindex.format(sample=sampletmpoutpath+sample) )
+
         CMDs.append( cmdGenerator.formatCmd( 'mv %s%s.sorted.mdup* %s'%(sampletmpoutpath, sample, outputpath) )) 
         CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
 
@@ -475,7 +678,7 @@ def varCall(cmdset, runmode='test'):
 
     #caller sample and output format string
     #flag: options before template or not
-    callertb = {'mutect': [Template(' --input_file:normal $inputpath$normalsample --input_file:tumor $inputpath$tumorsample --out $outputpath$outbase.txt --coverage_file $outputpath$outbase.coverage.wig.txt --vcf $outputpath$outbase.vcf '), False], 'varscan': [Template('samtools mpileup -B -f $reference -q $minq $inputpath$normalsample > $outputpath$normalsample.pileup \n\nsamtools mpileup -B -f $reference -q $minq $inputpath$tumorsample > $outputpath$tumorsample.pileup\n\n$callcmd somatic $outputpath$normalsample.pileup $outputpath$tumorsample.pileup --output-snp $outputpath$outbase.snv --output-indel $outputpath$outbase.indel --output-vcf '), False], 'sniper': [Template(' $inputpath$tumorsample $inputpath$normalsample $outputpath$outbase.vcf '), True] }
+    callertb = {'mutect': [Template(' --input_file:normal $inputpath$normalsample --input_file:tumor $inputpath$tumorsample --out $outputpath$outbase.txt --coverage_file $outputpath$outbase.coverage.wig.txt --vcf $outputpath$outbase.vcf '), False], 'varscan': [Template('samtools mpileup -B -f $reference -q $minq $inputpath$normalsample > $outputpath$normalsample.pileup \n\nsamtools mpileup -B -f $reference -q $minq $inputpath$tumorsample > $outputpath$tumorsample.pileup\n\n$callcmd somatic $outputpath$normalsample.pileup $outputpath$tumorsample.pileup --output-snp $outputpath$outbase.snv --output-indel $outputpath$outbase.indel --output-vcf '), False], 'sniper': [Template(' $inputpath$tumorsample $inputpath$normalsample $outputpath$outbase.vcf '), True], 'virmid': [Template(' -D $inputpath$tumorsample -N $inputpath$tumorsample -w $outputpath -o $outbase '), False], 'strelka':[Template(' --tumor $inputpath$tumorsample --normal $inputpath$normalsample --ref $reference --config $strelka_config --output-dir $outputpath \n\nmake -C $outputpath'), False] }
 
     cmdset = configRobot.makeParasList(cmdset, ['normalsample', 'tumorsample'])
     cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
@@ -529,6 +732,9 @@ def varCall(cmdset, runmode='test'):
                 tempset['minq'] = paraset.pop('-q')
                 tempset['callcmd'] = callcmd
                 callcmd = ''
+            elif callertag == 'strelka':
+                tempset['reference'] = paraset.pop('--ref')
+                tempset['strelka_config'] = paraset.pop('--config')
             jobprefix = prefix + '_' + normalsample[sampidx] + '_' + tumorsample[sampidx]
 
             if addpara != "''": 
@@ -541,15 +747,24 @@ def varCall(cmdset, runmode='test'):
             if 'toShell' in paraset.keys():
                 CMDs.append( cmdGenerator.formatCmd( paraset.pop('toShell') ) )
 
-            CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+            if callertag != 'strelka':
+                CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+            else:
+                CMDs.append( cmdGenerator.formatCmd('echo "TMPJOBDIR=%s"'%(sampletmpoutpath)))
 
             if optionsbeforetemp:
-                CMDs.append( cmdGenerator.formatCmd( callcmd, paraset, template.substitute(tempset) ) )
+                varcallcmds = cmdGenerator.formatCmd( callcmd, paraset, template.substitute(tempset) ) 
             else:
-                CMDs.append( cmdGenerator.formatCmd( callcmd, template.substitute(tempset), paraset ) )
+                varcallcmds = cmdGenerator.formatCmd( callcmd, template.substitute(tempset), paraset ) 
+            for vcmd in varcallcmds.split('\n\n'):
+                CMDs.append( vcmd )
 
-            CMDs.append( cmdGenerator.formatCmd( 'mv %s* %s'%(tempset['outputpath']+tempset['outbase'], sampleoutputpath) )) 
-            CMDs.append( cmdGenerator.formatCmd( 'rm -f %s*.pileup'%(tempset['outputpath']) ) )
+            if callertag == 'strelka':
+                CMDs.append( cmdGenerator.formatCmd( 'mv %sresults/all.somatic.snvs.vcf  %s'%(tempset['outputpath'], sampleoutputpath+tempset['outbase']+'.snv.vcf') )) 
+                CMDs.append( cmdGenerator.formatCmd( 'mv %sresults/all.somatic.indels.vcf  %s'%(tempset['outputpath'], sampleoutputpath+tempset['outbase']+'.indel.vcf') )) 
+            else:
+                CMDs.append( cmdGenerator.formatCmd( 'mv %s* %s'%(tempset['outputpath']+tempset['outbase'], sampleoutputpath) )) 
+                CMDs.append( cmdGenerator.formatCmd( 'rm -f %s*.pileup'%(tempset['outputpath']) ) )
             CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, sampleoutputpath)) )
 
             jobmanager.createJob(jobprefix, CMDs, outpath = sampleoutputpath, outfn = jobprefix, trackcmd=False)
@@ -613,424 +828,6 @@ def pileupCount(cmdset, runmode='test'):
     return jobmanager
 
 
-def DESeqPair(cmdset, runmode='test'):
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmdset = configRobot.makeParasList(cmdset, ['meta', 'group1', 'group2'])
-    cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
-    group1, group2 = configRobot.popParas(cmdset, ['group1', 'group2'])
-    template = open(cmdset.pop('template')).read()
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    cmdset['inputpath'] = inputpath
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
-    cmdset['outputpath'] = outputpath
-    cmdset['prefix'] = prefix
-
-    meta = configRobot.popParas(cmdset, ['meta'])
-    if meta[0] == "''" and len(meta) == 1:
-        cmdset['meta'] = 'c()'
-    else:
-        cmdset['meta'] = 'c(\'' + '\', \''.join(meta) + '\')'
-
-    if cmdset['countfnprefix'] == "''": cmdset['countfnprefix'] = ''
-    if cmdset['countfnsuffix'] == "''": cmdset['countfnsuffix'] = ''
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-    setuppathcmd = cmdGenerator.formatCmd('source ~/libraries/setup_seqtools')
-    for i in range(len(group1)):
-        paraset = copy.deepcopy(cmdset)        
-        paraset['gr1'] = group1[i]
-        paraset['gr2'] = group2[i]
-        jobfnprefix = prefix + '_' + group1[i] + '_' + group2[i]
-
-        f = open('./%s.R'%(jobfnprefix), 'w')
-        f.write(template%paraset)
-        f.close()
-
-        deseqcmd = cmdGenerator.formatCmd('Rscript', './%s.R'%(jobfnprefix))
-        mvRscriptcmd = cmdGenerator.formatCmd('mv ./%s.R %s'%(jobfnprefix, outputpath))
-        mvscriptcmd = cmdGenerator.formatCmd('mv ./%s%s %s'%(jobfnprefix, jobmanager.ext, outputpath))
-
-        jobmanager.createJob(jobfnprefix, [setuppathcmd, deseqcmd, mvRscriptcmd, mvscriptcmd], outpath = outputpath, outfn = jobfnprefix)
-    return jobmanager
-    
-    
-
-def HTSeqCount(cmdset, runmode='test'):
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmd, mem, time, samples, prefix, bam = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'sample', 'prefix', 'bam'])
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath) 
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    gtf = configRobot.popParas(cmdset, ['GTF'])
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-    setuppathcmd = cmdGenerator.formatCmd('source ~/libraries/setup_seqtools')
-
-    if type(samples) != type([]) and type(samples) != type(()):
-        samples = [samples]
-
-    for sample in samples:
-        paraset = copy.deepcopy(cmdset)        
-        jobfnprefix = prefix + '_' + sample
-        if bam == '=sample':
-            inputfile = sample
-            outputfile = sample + '.count'
-        else: 
-            inputfile = sample + '/' + bam
-            outputfile = sample + '/' + bam + '.count'
-            cmdGenerator.checkPath(outputpath + sample, create=createpath)
-
-        samcmd = 'samtools view -h %s | '%(inputpath+inputfile)
-        htseq = 'python -m HTSeq.scripts.count -q '
-        countcmd = cmdGenerator.formatCmd(samcmd, htseq, paraset, '-', gtf, ' > %s'%(outputpath + outputfile))
-        mvscriptcmd = cmdGenerator.formatCmd('mv ./%s%s %s'%(jobfnprefix, jobmanager.ext, outputpath))
-
-        jobmanager.createJob(jobfnprefix, [setuppathcmd, countcmd, mvscriptcmd], outpath = outputpath, outfn = jobfnprefix)
-    return jobmanager
-        
-
-#mapping
-#pipeline component: run tophat to map data
-def tophat(cmdset, runmode='test'):
-    global availParas
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmd, mem, time, samples, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'sample', 'prefix'])
-    paired = configRobot.popParas(cmdset, ['paired'])
-    readext, outpath, genome = configRobot.popParas(cmdset, ['readext', 'outputpath', 'genome'])
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    setuppathcmd = cmdGenerator.formatCmd('source ~/libraries/setup_seqtools\necho $BOWTIE2_INDEXES')
-
-    if type(samples) != type([]) and type(samples) != type(()):
-        samples = [samples]
-
-    cmdGenerator.checkPath(outpath + '%s/'%prefix, create=createpath)
-
-    for sample in samples:
-        if paired == 'paired' or paired == 'yes':
-            reads = map(lambda(i): inputpath + sample + '_%d'%i + readext, [1,2])
-        elif paired == 'single' or paired == 'no':
-            reads = inputpath + sample + readext
-        paraset = copy.deepcopy(cmdset)
-        paraset['-o'] = outpath + '%s/'%prefix + sample
-        jobfnprefix = prefix + '_' + sample
-        
-        tophatcmd = cmdGenerator.formatCmd(cmd, paraset, genome, reads)
-        mvscriptcmd = cmdGenerator.formatCmd('mv ./%s%s %s'%(jobfnprefix, jobmanager.ext, paraset['-o']))
-
-        if int(paraset['-p']) > 1: #multiple threads per job
-            sgeopt = ['-pe smp ' + paraset['-p']]
-        else:
-            sgeopt = []
-
-        #need to create the output directory first, otherwise SGE complains cannot put the stdout in its path
-        cmdGenerator.checkPath(paraset['-o'], create=createpath)
-        jobmanager.createJob(jobfnprefix, [setuppathcmd, tophatcmd, mvscriptcmd], outpath = paraset['-o'], outfn = jobfnprefix, sgeopt=sgeopt)
-    return jobmanager
-
-
-def cufflinks(cmdset, runmode='test'):
-    global availParas
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmd, mem, time, samples, prefix, bam = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'sample', 'prefix', 'bam'])
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
-    outputpath = cmdGenerator.checkPath(outputpath + '%s/'%prefix, create=createpath)
-
-    if type(samples) != type([]) and type(samples) != type(()):
-        samples = [samples]
-    
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-    for sample in samples:
-        jobname = prefix + '_' + sample
-        CMD = []
-        CMD.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
-
-        paraset = copy.deepcopy(cmdset)
-        paraset['-o'] = outputpath + sample
-        paraset = configRobot.validParas(paraset, availParas['cufflinks'])
-        cmdGenerator.checkPath(paraset['-o'], create=createpath)
-        CMD.append( cmdGenerator.formatCmd(cmd, paraset, inputpath+'%s/'%sample+bam) )
-        
-        CMD.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, paraset['-o'])) )
-        sgeopt = []
-        if '-p' in paraset.keys():
-            if int(paraset['-p']) > 1: #multi threads
-                sgeopt = ['-pe smp ' + paraset['-p']]
-        elif '--num-threads' in paraset.keys():
-            if int(paraset['--num-threads']) > 1:
-                sgeopt = ['-pe smp ' + paraset['-p']]
-        jobmanager.createJob(jobname, CMD, outpath=paraset['-o'], outfn=jobname, sgeopt=sgeopt)
-    return jobmanager
-
-
-def cuffcompare(cmdset, runmode='test'):
-    global availParas
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmd, mem, time, samples, prefix, gtf = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'sample', 'prefix', 'gtf'])
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
-
-    if type(samples) != type([]) and type(samples) != type(()):
-        samples = [samples]
-    
-    sampletext = ''
-    for sample in samples:
-        sampletext = sampletext + '%s%s/%s '%(inputpath, sample, gtf)
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    jobname = prefix
-    CMD = []
-    CMD.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
-
-    paraset = copy.deepcopy(cmdset)
-    paraset['-o'] = outputpath + paraset['-o']
-    paraset = configRobot.validParas(paraset, availParas['cuffcompare'])
-    CMD.append( cmdGenerator.formatCmd(cmd, paraset, sampletext) )
-    CMD.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, outputpath)) )
-
-    jobmanager.createJob(jobname, CMD, outpath=outputpath, outfn=jobname, trackcmd=False)
-    return jobmanager
-
-
-
-def cuffmerge(cmdset, runmode='test'):
-    global availParas
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmd, mem, time, samples, prefix, gtf = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'sample', 'prefix', 'gtf'])
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
-
-    if type(samples) != type([]) and type(samples) != type(()):
-        samples = [samples]
-    
-    sampletext = '"'
-    for sample in samples:
-        sampletext = sampletext + '%s%s/%s\\n'%(inputpath, sample, gtf)
-    sampletext = sampletext + '"'
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    jobname = prefix
-    CMD = []
-    CMD.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
-    paraset = copy.deepcopy(cmdset)
-    paraset['-o'] = outputpath + paraset['-o']
-
-    CMD.append( cmdGenerator.formatCmd('echo', sampletext, '>', paraset['-o'] + '.samples') )
-    
-    paraset = configRobot.validParas(paraset, availParas['cuffmerge'])
-    cmdGenerator.checkPath(paraset['-o'], create=createpath)
-    CMD.append( cmdGenerator.formatCmd(cmd, paraset, paraset['-o'] + '.samples') )
-    CMD.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, paraset['-o'])) )
-    CMD.append( cmdGenerator.formatCmd('rm -f', paraset['-o'] + '.samples') )
-    sgeopt = []
-    if '-p' in paraset.keys():
-        if int(paraset['-p']) > 1: #multi threads
-            sgeopt = ['-pe smp ' + paraset['-p']]
-    elif '--num-threads' in paraset.keys():
-        if int(paraset['--num-threads']) > 1:
-            sgeopt = ['-pe smp ' + paraset['-p']]
-    jobmanager.createJob(jobname, CMD, outpath=paraset['-o'], outfn=jobname, sgeopt=sgeopt, trackcmd=False)
-    return jobmanager
-
-def cuffdiff(cmdset, runmode='test'):
-    global availParas
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmd, mem, time, samples, prefix, gtf, bam = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'sample', 'prefix', 'gtf', 'bam'])
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-
-    if type(samples) != type([]) and type(samples) != type(()):
-        samples = [samples]
-    
-    sampletext = ''
-    for sample in samples:
-        sampletext = sampletext + '%s%s/%s '%(inputpath, sample, bam)
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    jobname = prefix
-    CMD = []
-    CMD.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
-
-    paraset = copy.deepcopy(cmdset)
-    paraset = configRobot.validParas(paraset, availParas['cuffdiff'])
-    cmdGenerator.checkPath(paraset['--output-dir'], create=createpath)
-    CMD.append( cmdGenerator.formatCmd(cmd, paraset, gtf, sampletext) )
-    CMD.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, paraset['--output-dir'])) )
-    sgeopt = []
-    if '-p' in paraset.keys():
-        if int(paraset['-p']) > 1: #multi threads
-            sgeopt = ['-pe smp ' + paraset['-p']]
-    elif '--num-threads' in paraset.keys():
-        if int(paraset['--num-threads']) > 1:
-            sgeopt = ['-pe smp ' + paraset['-p']]
-    jobmanager.createJob(jobname, CMD, outpath=paraset['--output-dir'], outfn=jobname, sgeopt=sgeopt, trackcmd=False)
-    return jobmanager
-
-
-def cuffdiff_v1(cmdset, runmode='test'):
-    global availParas
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmd, mem, time, samples, prefix, gtf, bam = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'sample', 'prefix', 'gtf', 'bam'])
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-
-    if type(samples) != type([]) and type(samples) != type(()):
-        samples = [samples]
-    
-    sampletext = ''
-    for sample in samples:
-        sampletext = sampletext + '%s%s/%s '%(inputpath, sample, bam)
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    jobname = prefix
-    CMD = []
-    CMD.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
-
-    paraset = copy.deepcopy(cmdset)
-    paraset = configRobot.validParas(paraset, availParas['cuffdiff'])
-    cmdGenerator.checkPath(paraset['--output-dir'], create=createpath)
-    CMD.append( cmdGenerator.formatCmd('/ifs/home/c2b2/dp_lab/bc2252/SeqTool/cufflinks_1/cuffdiff', paraset, gtf, sampletext) )
-    CMD.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, paraset['--output-dir'])) )
-    sgeopt = []
-    if '-p' in paraset.keys():
-        if int(paraset['-p']) > 1: #multi threads
-            sgeopt = ['-pe smp ' + paraset['-p']]
-    elif '--num-threads' in paraset.keys():
-        if int(paraset['--num-threads']) > 1:
-            sgeopt = ['-pe smp ' + paraset['-p']]
-    jobmanager.createJob(jobname, CMD, outpath=paraset['--output-dir'], outfn=jobname, sgeopt=sgeopt, trackcmd=False)
-    return jobmanager
-
-
-
-def countmismatches(cmdset, runmode='test'):
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-    
-    cmd, mem, time, samples, prefix, bam = configRobot.popParas(cmdset,['cmd', 'mem', 'time', 'sample', 'prefix', 'bam'])
-    
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'))
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    direct = ['forward', 'reverse']
-    for sample in samples:
-        for d in direct:
-            jobname = prefix+'_'+sample+'_'+d
-            CMD = []
-            CMD.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
-            CMD.append( cmdGenerator.formatCmd('python','countmismatches.py',inputpath+sample+'/'+bam, outputpath+sample+'.%s.countmis'%d, d) )
-            CMD.append( cmdGenerator.formatCmd('mv', '%s%s'%(jobname, jobmanager.ext), outputpath) )
-            jobmanager.createJob(jobname, CMD, outpath=outputpath, outfn=jobname, trackcmd=False)
-    return jobmanager
-    
-
-def filetersingleton(cmdset, runmode='test'): 
-    global availParas
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmd, mem, time, samples, prefix, bam = configRobot.popParas(cmdset,['cmd', 'mem', 'time', 'sample', 'prefix', 'bam'])
-    if 'TMP_DIR' in cmdset.keys():
-        TMP_DIR = cmdset.pop('TMP_DIR')
-    else:
-        TMP_DIR = ''
-
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    programpath = cmdGenerator.checkPath(cmdset.pop('programpath'))
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    setuppathcmd = cmdGenerator.formatCmd('source ~/libraries/setup_seqtools')
-
-
-    javacmd = 'java -Xmx%dg -jar'%(int(mem.replace('G',''))-1)
-    samview = 'samtools view -b -h -F 8'
-    reorder = 'ReorderSam.jar VALIDATION_STRINGENCY=LENIENT'
-    RG = 'AddOrReplaceReadGroups.jar VALIDATION_STRINGENCY=LENIENT RGLB=dUTP RGPL=illumina RGPU=1'
-    mdup = 'MarkDuplicates.jar'
-    
-
-    for sample in samples:
-        jobfnprefix = prefix + '_' + sample
-        paraset = copy.deepcopy(cmdset)
-        if TMP_DIR != '': paraset['TMP_DIR'] = '%s'%TMP_DIR
-        tmpbam = []
-
-        CMDs = []
-        CMDs.append(setuppathcmd)
-
-        paraset['INPUT'] = '=%s/%s'%(inputpath+sample, bam)
-        paraset['OUTPUT'] = '=%s/%s.reorder.bam'%(inputpath+sample, bam.replace('.bam',''))
-        tmpbam.append(paraset['OUTPUT'].strip('='))
-        CMDs.append( cmdGenerator.formatCmd(javacmd, programpath+reorder, paraset) )
-        
-        paraset['INPUT'] = '=%s/%s.reorder.bam'%(inputpath+sample, bam.replace('.bam',''))
-        paraset['OUTPUT'] = '=%s/%s.reorder.addRG.bam'%(inputpath+sample, bam.replace('.bam',''))
-        paraset['RGSM'] = '=%s'%sample        
-        CMDs.append( cmdGenerator.formatCmd(javacmd, programpath+RG, paraset) )
-
-        paraset = copy.deepcopy(cmdset)
-        paraset['-o'] = '%s/%s.filter.bam'%(inputpath+sample, bam.replace('.bam','.addRG'))
-        CMDs.append( cmdGenerator.formatCmd(samview, paraset, inputpath+sample+'/'+bam.replace('.bam','.addRG.bam')) )
-
-        
-        paraset = copy.deepcopy(cmdset)
-        paraset['INPUT'] = '=%s/%s.filter.bam'%(inputpath+sample, bam.replace('.bam','.addRG'))
-        paraset['OUTPUT'] = '%s/%s.mdup.bam'%(paraset['INPUT'].replace('.bam', ''))
-        CMDs.append( cmdGenerator.formatCmd(javacmd, programpath+mdup, paraset) )
-
-        paraset = copy.deepcopy(cmdset)
-        CMDs.append( cmdGenerator.formatCmd('samtools index', bam.replace('.bam', '.reorder.addRG.filter.mdup.bam')) )
-
-
-        CMDs.append( cmdGenerator.formatCmd('rm -f', tmpbam) )
-        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobfnprefix, jobmanager.ext, inputpath+sample)) )
-
-        jobmanager.createJob(jobfnprefix, CMDs, outpath = inputpath+sample, outfn = jobfnprefix)
-    return jobmanager
-
 
 def markDup(cmdset, runmode='test'):
     global availParas
@@ -1078,329 +875,8 @@ def markDup(cmdset, runmode='test'):
     return jobmanager
 
 
-def preGATK(cmdset, runmode='test'):
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-    
-    cmd, mem, time, samples, prefix = configRobot.popParas(cmdset,['cmd', 'mem', 'time', 'sample', 'prefix'])
-    
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    picardpath = cmdGenerator.checkPath(cmdset.pop('picardpath'))
-    gatkpath = cmdGenerator.checkPath(cmdset.pop('gatkpath'))
-
-    bam = configRobot.popParas(cmdset, 'bam')
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    if '-Djava.io.tmpdir' in cmdset.keys():
-        javacmd = 'java ' + '-Djava.io.tmpdir' + cmdGenerator.checkPath(cmdset.pop('-Djava.io.tmpdir'))
-    else:
-        javacmd = 'java'
-    javacmd = javacmd + ' -Xmx%dg -jar'%(int(mem.replace('G',''))-2)
-        
-
-    samview = 'samtools view -b -h -F 264'
-    reorder = picardpath + 'ReorderSam.jar VALIDATION_STRINGENCY=LENIENT'
-    RG = picardpath + 'AddOrReplaceReadGroups.jar VALIDATION_STRINGENCY=LENIENT RGLB=dUTP RGPL=illumina RGPU=1'
-    mdupjar = picardpath + 'MarkDuplicates.jar'
-    GATK = gatkpath + 'GenomeAnalysisTK.jar '
-    createTg = '-T RealignerTargetCreator '
-    realign = '-T IndelRealigner '
-
-    idxcmd = 'samtools index'
-    clearup = 'rm -f '
 
 
-    for sample in samples:
-        CMDs = []
-        CMDs.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
-
-        jobname = prefix + '_' + sample
-
-        #filter
-        paraset = copy.deepcopy(cmdset)
-        paraset['-o'] = '%s/%s.filter.bam'%(inputpath+sample, bam.replace('.bam',''))
-        lastoutput = paraset['-o']
-        del paraset['-R']
-        del paraset['-filterMBQ']
-        #paraset = configRobot.validParas(paraset, availParas['samtools'])
-        CMDs.append( cmdGenerator.formatCmd(samview, paraset, inputpath+sample+'/'+bam ) )
-
-        #reorder by chrm
-        paraset = copy.deepcopy(cmdset)
-        paraset['INPUT'] = '=%s'%lastoutput
-        paraset['OUTPUT'] = '=%s.reorder.bam'%(lastoutput.replace('.bam',''))
-        paraset['REFERENCE'] = '=%s'%paraset['-R']
-        paraset = configRobot.validParas(paraset, availParas['ReorderSam.jar'])
-        CMDs.append( cmdGenerator.formatCmd(javacmd, reorder, paraset) )
-        CMDs.append( cmdGenerator.formatCmd(clearup, lastoutput) )
-        lastoutput = paraset['OUTPUT'].strip('=')
-        
-        #add RG
-        paraset = copy.deepcopy(cmdset)
-        paraset['INPUT'] = '=%s'%lastoutput
-        paraset['OUTPUT'] = '=%s.addRG.bam'%(lastoutput.replace('.bam',''))
-        paraset['RGSM'] = '=%s'%sample        
-        paraset = configRobot.validParas(paraset, availParas['AddOrReplaceReadGroups.jar'])
-        CMDs.append( cmdGenerator.formatCmd(javacmd, RG, paraset) )
-        CMDs.append( cmdGenerator.formatCmd(clearup, lastoutput) )
-        lastoutput = paraset['OUTPUT'].strip('=')
-
-        #mark duplicates
-        paraset = copy.deepcopy(cmdset)
-        paraset['INPUT'] = '=%s'%lastoutput
-        paraset['OUTPUT'] = '=%s.mdup.bam'%(lastoutput.replace('.bam', ''))
-        paraset['METRICS_FILE'] = '=%s/%s'%(inputpath + sample, prefix + '_mdupmetrics.txt')
-        paraset = configRobot.validParas(paraset, availParas['MarkDuplicates.jar'])
-        CMDs.append( cmdGenerator.formatCmd(javacmd, mdupjar, paraset) )
-        CMDs.append( cmdGenerator.formatCmd(idxcmd, paraset['OUTPUT'].strip('=')) )
-        lastoutput = paraset['OUTPUT'].strip('=')
-
-        #create intervals
-        paraset = copy.deepcopy(cmdset)
-        paraset['-I'] = lastoutput
-        paraset['-o'] = lastoutput.replace('.bam', '.intervals')
-        CMDs.append( cmdGenerator.formatCmd(javacmd, GATK+createTg, paraset) )
-
-        #realign
-        paraset['-targetIntervals'] = paraset['-o']
-        paraset['-o'] = lastoutput.replace('.bam', '.realign.bam')
-        CMDs.append( cmdGenerator.formatCmd(javacmd, GATK+realign, paraset) )
-
-        #clear up
-        CMDs.append( cmdGenerator.formatCmd(clearup, lastoutput) )
-        CMDs.append( cmdGenerator.formatCmd(clearup, lastoutput.replace('.bam', '.intervals')) )
-        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, inputpath+sample)) )
-        jobmanager.createJob(jobname, CMDs, outpath = inputpath+sample, outfn = jobname)
-    
-    return jobmanager
-
-
-def picardReorderSam(cmdset, runmode='test'):
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-    
-    cmd, mem, time, samples, prefix = configRobot.popParas(cmdset,['cmd', 'mem', 'time', 'sample', 'prefix'])
-    
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'))
-    programpath = cmdGenerator.checkPath(cmdset.pop('programpath'))
-
-    bam = configRobot.popParas(cmdset, 'bam')
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    if '-Djava.io.tmpdir' in cmdset.keys():
-        javacmd = 'java ' + '-Djava.io.tmpdir' + cmdGenerator.checkPath(cmdset.pop('-Djava.io.tmpdir'))
-    else:
-        javacmd = 'java'
-    javacmd = javacmd + ' -Xmx%dg -jar'%(int(mem.replace('G',''))-2)        
-    reorder = programpath + 'ReorderSam.jar VALIDATION_STRINGENCY=LENIENT'
-
-
-    for sample in samples:
-        CMDs = []
-        CMDs.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
-
-        jobname = prefix + '_' + sample
-
-        #reorder by chrm
-        paraset = copy.deepcopy(cmdset)
-        if bam == '=sample':
-            inputfile = sample
-        else:
-            inputfile = sample + '/' + bam
-        paraset['INPUT'] = '=%s'%(inputpath + inputfile)
-        paraset['OUTPUT'] = '=%s.reorder.bam'%(outputpath + inputfile.replace('.bam',''))
-        paraset = configRobot.validParas(paraset, availParas['ReorderSam.jar'])
-        CMDs.append( cmdGenerator.formatCmd(javacmd, reorder, paraset) )
-        
-        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, outputpath)) )
-        jobmanager.createJob(jobname, CMDs, outpath = outputpath, outfn = jobname)
-    
-    return jobmanager
-
-
-def GATK_genotyper(cmdset, runmode='test'):
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-    
-    cmd, mem, time, samples, prefix = configRobot.popParas(cmdset,['cmd', 'mem', 'time', 'sample', 'prefix'])
-    
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
-    gatkpath = cmdGenerator.checkPath(cmdset.pop('gatkpath'))
-
-    bam = configRobot.popParas(cmdset, 'bam')
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    if '-Djava.io.tmpdir' in cmdset.keys():
-        javacmd = 'java ' + '-Djava.io.tmpdir' + cmdGenerator.checkPath(cmdset.pop('-Djava.io.tmpdir'))
-    else:
-        javacmd = 'java'
-    javacmd = javacmd + ' -Xmx%dg -jar'%(int(mem.replace('G',''))-2)
-        
-    GATK = gatkpath + 'GenomeAnalysisTK.jar '
-    genotyper = '-T UnifiedGenotyper '
-
-
-    CMDs = []
-    CMDs.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
-    
-    jobname = prefix
-
-    paraset = copy.deepcopy(cmdset)
-    paraset['-I'] = inputpath + samples[0] + '/' + bam
-    for si in range(1,len(samples)):
-        paraset['-I'] = paraset['-I'] + ' -I ' + inputpath + samples[si] + '/' + bam
-
-    CMDs.append( cmdGenerator.formatCmd(javacmd, GATK+genotyper, paraset) )
-
-    CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, outputpath)) )
-    jobmanager.createJob(jobname, CMDs, outpath = outputpath, outfn = jobname)
-    
-    return jobmanager
-
-
-def picardQC(cmdset, runmode='test'):
-    global availParas
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    metrics = {'CollectRnaSeqMetrics.jar': 'RnaSeq', 'CollectMultipleMetrics.jar': '', 'EstimateLibraryComplexity.jar': 'Lib', 'CollectGcBiasMetrics.jar': 'GC'}
-    metrickeys = ['CollectRnaSeqMetrics.jar', 'CollectMultipleMetrics.jar', 'EstimateLibraryComplexity.jar', 'CollectGcBiasMetrics.jar']
-
-    cmd, mem, time, bam, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'bam', 'prefix'])
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
-    programpath = cmdGenerator.checkPath(cmdset.pop('programpath'))
-
-    if 'runmetric' in cmdset.keys():
-        cmdset = configRobot.makeParasList(cmdset, ['runmetric'])
-        runmetric = configRobot.popParas(cmdset, ['runmetric'])
-        metrickeys = list(set(metrickeys).intersection(runmetric))
-
-    samples = cmdset.pop('sample')
-
-    pathsetup = 'source ./pathsetup'
-    javacmd = 'java -Xmx%dg -jar'%(int(mem.replace('G',''))-2)
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-    for sample in samples:
-        jobname = prefix + '_' + sample.split('/')[-1]
-        allcmds = []
-            
-        paraset = copy.deepcopy(cmdset)
-        if bam == '=sample':
-            paraset['INPUT'] = '=%s'%(inputpath+sample)
-        else:
-            paraset['INPUT'] = '=%s/%s'%(inputpath+sample, bam)
-        if '/' in sample: sample = sample.split('/')[-1]
-
-        paraset['TMP_DIR'] = paraset['TMP_DIR'] + prefix + '_' + sample + '/'
-        cmdGenerator.checkPath(paraset['TMP_DIR'].strip('='), create=createpath)
-
-        for metric in metrickeys:
-            if 'MultipleMetrics' in metric:
-                paraset['OUTPUT'] = '=%s'%(outputpath + sample + metrics[metric])
-            else:
-                paraset['OUTPUT'] = '=%s.txt'%(outputpath + sample + '.' + metrics[metric])
-            paraset['CHART_OUTPUT'] = '%s'%(paraset['OUTPUT'].replace('.txt', '.pdf'))
-            paraset['SUMMARY_OUTPUT'] = '%s'%(paraset['OUTPUT'].replace('.txt', '.summary.txt'))
-
-            #filter out parameters that are not supported
-            metricparaset = configRobot.validParas(paraset, availParas[metric])
-            allcmds.append(cmdGenerator.formatCmd(pathsetup))
-            allcmds.append(cmdGenerator.formatCmd(javacmd, programpath + metric, metricparaset))
-
-        allcmds.append(cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, outputpath)))
-        allcmds.append(cmdGenerator.formatCmd('rm -Rf', paraset['TMP_DIR'].strip('=')))
-        jobmanager.createJob(jobname, allcmds, outpath = outputpath, outfn = jobname)
-    return jobmanager
-
-    
-    
-def RNASeQC(cmdset, runmode='test'):
-    global availParas
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmd, mem, time = configRobot.popParas(cmdset, ['cmd', 'mem', 'time'])
-    samples, bam, prefix = configRobot.popParas(cmdset, ['sample', 'bam', 'prefix'])
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    programpath = cmdGenerator.checkPath(cmdset.pop('programpath'))
-    if '-Djava.io.tmpdir' in cmdset.keys():
-        javacmd = 'java ' + '-Djava.io.tmpdir' + cmdGenerator.checkPath(cmdset.pop('-Djava.io.tmpdir'))
-    else:
-        javacmd = 'java'
-    javacmd = javacmd + ' -Xmx%dg -jar'%(int(mem.replace('G',''))-2)
-
-
-    #need to generate -s, -o
-    #generate a temperory file
-    samplestr = '"Sample ID\\tBam File\\tNotes\\n'
-    for sample in samples:
-        samplestr = samplestr + '%s\\t%s\\t%s\\n'%(sample, inputpath + sample + '/' + bam, sample)
-    samplestr = samplestr + '"'
-    samplefile = '%s.samples'%prefix
-
-    cmdset['-s'] = samplefile
-    cmdset['-o'] = inputpath + 'RNA-SeQC/'
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-
-    setupcmd = cmdGenerator.formatCmd('source ~/libraries/setup_seqtools')
-    createsamplefile = cmdGenerator.formatCmd('echo', samplestr, '>', samplefile)
-    removesamplefile = cmdGenerator.formatCmd('rm -f', samplefile)
-    mvscriptcmd = cmdGenerator.formatCmd('mv %s%s %s'%(prefix, jobmanager.ext, cmdset['-o']))
-    qccmd = cmdGenerator.formatCmd(javacmd, programpath+cmd, cmdset)
-
-    cmdGenerator.checkPath(cmdset['-o'], create=createpath)
-    jobmanager.createJob(prefix, [setupcmd, createsamplefile, qccmd, removesamplefile, mvscriptcmd], outfn = prefix, outpath = cmdset['-o'], trackcmd=False)
-    return jobmanager
-
-
-def RSeQC(cmdset, runmode='test'):
-    global availParas
-    if runmode == 'test':
-        createpath = False
-    else:
-        createpath = True
-
-    cmd, mem, time = configRobot.popParas(cmdset, ['cmd', 'mem', 'time'])
-    samples, bam, prefix = configRobot.popParas(cmdset, ['sample', 'bam', 'prefix'])
-    inputpath = cmdGenerator.checkPath(cmdset.pop('inputpath'))
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
-    programpath = cmdGenerator.checkPath(cmdset.pop('programpath'))
-
-    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
-    programs = ['inner_distance.py', 'junction_annotation.py', 'junction_saturation.py', 'read_GC.py', 'read_duplication.py']
-
-    for sample in samples:
-        jobname = prefix + '_' + sample
-        CMDs = []
-        CMDs.append( cmdGenerator.formatCmd('source ~/libraries/setup_seqtools') )
-        for prog in programs:
-            paraset = copy.deepcopy(cmdset)
-            paraset['-i'] = inputpath + sample + '/' + bam
-            paraset['-o'] = outputpath + sample + '.%s'%(prog.replace('.py', ''))
-            paraset = configRobot.validParas(paraset, availParas[prog])
-            if '-o' not in paraset.keys():
-                paraset['>'] = outputpath + sample + '.%s'%(prog.replace('.py', ''))                            
-
-            CMDs.append( cmdGenerator.formatCmd('python', programpath+prog, paraset) )
-        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobname, jobmanager.ext, outputpath)) )
-        jobmanager.createJob(jobname, CMDs, outpath = outputpath, outfn = jobname)
-    return jobmanager
-            
 
 ###main
 def main(cmd = '', module = '', config = 'projconfig.txt', runmode = 'test'):
@@ -1413,13 +889,7 @@ def main(cmd = '', module = '', config = 'projconfig.txt', runmode = 'test'):
         if setname != module and cmdsets[setname]['cmd'] != cmd:
             continue
 
-        jobmanager = ''
-
-
-        if 'RNA-SeQC' in cmdsets[setname]['cmd']:
-            jobmanager = RNASeQC(cmdsets[setname], runmode)
-        else:
-            jobmanager = eval( '%s(cmdsets[setname], runmode)'%cmdsets[setname]['cmd'] )
+        jobmanager = eval( '%s(cmdsets[setname], runmode)'%cmdsets[setname]['cmd'] )
 
         if runmode == 'run' and jobmanager != '':
             submitted, skipped = jobmanager.submitJob()
