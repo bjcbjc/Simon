@@ -57,7 +57,7 @@ def createTempLocFile(args, validChrms):
         replaceProg = re.compile('(?P<chrm>^[0-9]{1,2}|^[XYMT]{1,2})')
     if any(map(lambda(l): reprog.match(l), locChrms)):
         locWithChr = True
-        replaceProg = re.compile('(?P<chrm>^chr')
+        replaceProg = re.compile('(?P<chrm>^chr)')
     if bamWithChr != locWithChr:
         loc = [ re.sub(replaceProg, chrmReplaceFunc, line) for line in loc]
 
@@ -72,7 +72,7 @@ def createTempLocFile(args, validChrms):
     
     return locfile, removelater
 
-def pileupToCount(samout, out, minread, stranded=True, tableformat=False):
+def pileupToCount(samout, out, minread, stranded=True, tableformat=False, singlesite=False):
     #pileup special chars in read_bases: ^: start of read, followed by an additional char for mapping qual
     # $: end of read
     # > or < suggests non-coding region
@@ -82,7 +82,7 @@ def pileupToCount(samout, out, minread, stranded=True, tableformat=False):
     else:
         baseLabels = ['>', 'A', 'T', 'C', 'G', 'N']
 
-    if tableformat:
+    if tableformat and not singlesite:
         out.write('\t'.join(['chr', 'pos', 'ref', '#read']) + '\t' + '\t'.join(baseLabels) + '\n')
     line = samout.readline()
     count = 1
@@ -112,13 +112,15 @@ def pileupToCount(samout, out, minread, stranded=True, tableformat=False):
                 #out.write('\t'.join(line[:4]) + '\t' + baseCountString + '\n')            
                 outbuffer = outbuffer + '\t'.join(line[:4]) + '\t' + baseCountString + '\n'
         count = count + 1
+
         if count%100 == 0:
             out.write(outbuffer)
             outbuffer = ''
         line = samout.readline()
-    if outbuffer != '':
+    if outbuffer != '' and not singlesite:
         out.write(outbuffer)
-    return
+        outbuffer = ''
+    return outbuffer
 
 def bamChrms(args):
     sampipe = subprocess.Popen(args.samtools + ' view -H ' + args.bam, shell=True, stdout=subprocess.PIPE)
@@ -161,6 +163,11 @@ if args.tmpdir[-1] != '/': args.tmpdir = args.tmpdir + '/'
 argtb = vars(args)
 sampara = ['d', 'q', 'Q', 'f']
 
+if args.stranded:
+    baseLabels = ['>', 'A', 'T', 'C', 'G', 'N', '<', 'a', 't', 'c', 'g', 'n']
+else:
+    baseLabels = ['>', 'A', 'T', 'C', 'G', 'N']
+
 if args.loc != '' and args.reg != '':
     print 'Both -loc and -reg specified; ignore -loc.'
     args.loc = ''
@@ -175,9 +182,11 @@ if args.reg != '':
         print 'Some chromosomes specified in regions are not found in bam'
         exit()
     cmd = args.samtools + ' mpileup -r %s '
+    tmpfiles = []
 else:
     locfile, tmpfiles = createTempLocFile(args, validChrms)
-    cmd = args.samtools + ' mpileup -l %s '%(locfile)
+    cmd = args.samtools + ' mpileup -r %s:%s-%s '
+    #cmd = args.samtools + ' mpileup -l %s '%(locfile)
 
 for switch in sampara:
     cmd = cmd + '-%s %s '%(switch, argtb[switch])
@@ -189,12 +198,30 @@ samout, samerr, out = None, None, None
 try:
     #run samtools and pipe the output for further process (save space)
     if args.loc != '':
-        sampipe = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)#, stderr=subprocess.PIPE)
-        samout = sampipe.stdout #, sampipe.stderr
-
+        siteloc = [l.strip().split() for l in open(locfile).readlines()]
         out = open(args.o, 'w')
-        pileupToCount(samout, out, args.r, stranded=args.stranded, tableformat=args.tableformat)
-        
+        if args.tableformat:
+            out.write('\t'.join(['chr', 'pos', 'ref', '#read']) + '\t' + '\t'.join(baseLabels) + '\n')
+        count = 0
+        outbuffer = ''
+        for chrm, site in siteloc:
+            sampipe = subprocess.Popen(cmd%(chrm,site,site), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            samout = sampipe.stdout#, sampipe.stderr
+            
+            #out = open(args.o, 'w')
+            outbuffer = outbuffer + pileupToCount(samout, out, args.r, stranded=args.stranded, tableformat=args.tableformat, singlesite=True)
+            logmsg = sampipe.stderr.read().strip()
+            if logmsg != '[mpileup] 1 samples in 1 input files':
+                print logmsg
+            count = count + 1
+            #print chrm,site
+            if count%100 == 0:
+                out.write(outbuffer)
+                outbuffer = ''
+            closefiles([samout, samerr])
+        if outbuffer != '':
+            out.write(outbuffer)
+            outbuffer = ''
         if len(tmpfiles) > 0:
             #remove temp file
             subprocess.call( 'rm -f ' + ' '.join(tmpfiles), shell=True )
