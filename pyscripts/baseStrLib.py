@@ -15,6 +15,7 @@ baseStrings are from samtools' mpileup
 """
 class BaseString:
     indelOccurenceProg = re.compile('([\+-][0-9]+)')
+#    cleanProg = re.compile('\^\S|\$')
     @staticmethod
     def matchIndels(baseString):
         """ return 
@@ -22,7 +23,7 @@ class BaseString:
                 newBaseString: baseString without indels
         """            
         occurrences = BaseString.indelOccurenceProg.findall(baseString)
-        indels = {}
+        indels = Counter()
         newBaseString = baseString
         for n in set(occurrences):
             indelprog = re.compile('\\%s[ATCGNatcgn]{%s}'%(n,n.strip('+-')))
@@ -30,8 +31,35 @@ class BaseString:
             newBaseString = indelprog.sub('', newBaseString)
             indels.update( Counter(indelStrings) )
         return indels, newBaseString
+    
+    @staticmethod
+    def splitBaseString(baseString):
+        # indels do not have qual
+        # so group indels with the previous base so we can match qual for it
+#        if '^' in baseString or '$' in baseString:
+#            baseString = cleanProg.sub('', baseString)
+        occurrences = BaseString.indelOccurenceProg.finditer(baseString)
+        startpos, endpos = [],[] # [start_pos, n]
+        for m in occurrences: 
+            token = m.group(0)
+            n = int(token.strip('+-')) + len(token)
+            s = m.start()
+            startpos.append( s )
+            endpos.append(s+n)
+        i = 0
+        tokens = []
+        while i < len(baseString):
+            if i in startpos:
+                idx = startpos.index(i)
+                indel = baseString[ startpos[idx]:endpos[idx] ]
+                tokens[-1] = tokens[-1] + indel
+                i = endpos[idx]
+            else:
+                tokens.append( baseString[i] )
+                i = i + 1
+        return tokens
 
-
+            
 """ 
 baseCountStrings are strings from pileupCount.py
 The following functions operate on baseCountStrings
