@@ -1,13 +1,308 @@
+
+
+snpir.filter.DNA.blat:
+cmd	snpirfilter
+perl	/data/NYGC/Software/perl/perls/perl-5.18.0/bin/perl
+snpirpath	/data/NYGC/Resources/SNPiR/
+bedtoolspath	/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/
+geneannotation	/data/NYGC/Resources/SNPiR/ANNT/all_annotation.hg19_noChr
+repeatmask	/data/NYGC/Resources/SNPiR/ANNT/repeatmasker.hg19_noChr.bed
+rnaedit	/data/NYGC/Resources/SNPiR/ANNT/Human_AG_all_hg19_noChr.bed
+vcfpath	/nethome/bjchen/Projects/Simon/DNA/vcf/snpirfiltered/TMPSPLIT/SUBSPLIT/
+bampath	/nethome/bjchen/Projects/Simon/DNA/bam/
+outputpath	/nethome/bjchen/Projects/Simon/DNA/vcf/snpirfiltered/TMPSPLIT/SUBSPLIT/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/data/NYGC/Resources/Indexes/bwa/human_g1k_v37.fa
+somatic_caller	True
+runBLAT	True
+removeedit	True
+reStartAt	blat
+prefix	srftSub
+callername	virmid
+vcfname	{vcf}.snv.virmid.v1.0.2.vcf.p*.pp*
+bamname	{bam}.dedup.realigned.recal.bam
+output	{vcfname}
+vcf	132540-1T--132540-10N; 138381-2T--138381-4N
+bam	132540-1T; 138381-2T
+overwrite	True
+mem	12G
+time	24::
+
+
+snpir.filter.DNA.normal:
+cmd	snpirfilter
+perl	/data/NYGC/Software/perl/perls/perl-5.18.0/bin/perl
+snpirpath	/data/NYGC/Resources/SNPiR/
+bedtoolspath	/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/
+geneannotation	/data/NYGC/Resources/SNPiR/ANNT/all_annotation.hg19_noChr
+repeatmask	/data/NYGC/Resources/SNPiR/ANNT/repeatmasker.hg19_noChr.bed
+rnaedit	/data/NYGC/Resources/SNPiR/ANNT/Human_AG_all_hg19_noChr.bed
+vcfpath	/nethome/bjchen/Projects/Simon/DNA/vcf/normal_only/
+bampath	/nethome/bjchen/Projects/Simon/DNA/bam/
+outputpath	/nethome/bjchen/Projects/Simon/DNA/vcf/normal_only/usepipe/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/data/NYGC/Resources/Indexes/bwa/human_g1k_v37.fa
+varqual	20
+somatic_caller	False
+runBLAT	False
+removeedit	False
+prefix	srftNMPIP
+vcfname	{vcf}.allnormal.jointgatk.vcf.p*
+bamname	{bam}.dedup.realigned.recal.bam
+output	{vcfname}
+vcf	132540-10N; 138381-4N
+bam	132540-10N; 138381-4N
+overwrite	True
+mem	12G
+time	24::
+
+
+snpir.filter.RNA.all_virmid_calls.star:
+cmd	snpirfilter_virmidall
+perl	/data/NYGC/Software/perl/perls/perl-5.18.0/bin/perl
+snpirpath	/data/NYGC/Resources/SNPiR/
+bedtoolspath	/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/
+geneannotation	/data/NYGC/Resources/SNPiR/ANNT/all_annotation.hg19
+repeatmask	/data/NYGC/Resources/SNPiR/ANNT/repeatmasker.hg19.bed
+rnaedit	/data/NYGC/Resources/SNPiR/ANNT/Human_AG_all_hg19.bed
+vcfpath	/nethome/bjchen/Projects/Simon/RNA/virmid_star/
+bampath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/virmid_star/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+somatic_caller	True
+removeedit	True
+prefix	srftVallSTAR
+callername	virmid
+vcfname	{vcf}.all.virmid.vcf
+bamname	Sample_{bam}_Aligned.out.WithReadGroup.sorted.mdup.bam
+output	{vcfname}
+vcf	132540-10N_132540-1T.mdup; 138381-4N_138381-2T.mdup
+bam	132540-1T; 138381-2T
+overwrite	True
+mem	12G
+time	24::
+
+
+snpir.filter.RNA.all_virmid_calls.bwa:
+cmd	snpirfilter_virmidall
+perl	/data/NYGC/Software/perl/perls/perl-5.18.0/bin/perl
+snpirpath	/data/NYGC/Resources/SNPiR/
+bedtoolspath	/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/
+geneannotation	/data/NYGC/Resources/SNPiR/ANNT/all_annotation.hg19
+repeatmask	/data/NYGC/Resources/SNPiR/ANNT/repeatmasker.hg19.bed
+rnaedit	/data/NYGC/Resources/SNPiR/ANNT/Human_AG_all_hg19.bed
+vcfpath	/nethome/bjchen/Projects/Simon/RNA/virmid_bwa/
+bampath	/nethome/bjchen/Projects/Simon/RNA/bam_bwa/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/virmid_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/data/NYGC/Resources/SNPiR/SEQ/hg19.fa
+somatic_caller	True
+removeedit	True
+prefix	srftVallBWA
+callername	virmid
+vcfname	{vcf}.all.virmid.vcf
+bamname	Sample_{bam}.sorted.mdup.flt.realigned.recal.bam
+output	{vcfname}
+vcf	132540-10N_132540-1T; 138381-4N_138381-2T
+bam	132540-1T; 138381-2T
+overwrite	True
+mem	12G
+time	24::
+
+
+vcfFilterByBed.RNA.tumor.bynormal.star:
+cmd	filterVCFByBed
+toShell	export PATH=$PATH:/data/NYGC/Software/bedops/bin/
+vcfpath	/nethome/bjchen/Projects/Simon/RNA/gatk_star/
+bedpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/gatk_star/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	vcfbedTbyN_STAR
+vcf	132540-1T.vcf.sorted; 138381-2T.vcf.sorted
+bed	Sample_132540-10N; Sample_138381-4N
+bedname	{bed}_Aligned.out.WithReadGroup.sorted.genome.cov.sorted
+mincov	1; 6; 11
+overwrite	True
+mem	16G
+time	24::
+
+
+vcfFilterByBed.RNA.tumor.bynormal.bwa:
+cmd	filterVCFByBed
+toShell	export PATH=$PATH:/data/NYGC/Software/bedops/bin/
+vcfpath	/nethome/bjchen/Projects/Simon/RNA/gatk_bwa/
+bedpath	/nethome/bjchen/Projects/Simon/RNA/bam_bwa/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/gatk_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	vcfbedTbyN_BWA
+vcf	132540-1T.vcf.sorted; 138381-2T.vcf.sorted
+bed	Sample_132540-10N; Sample_138381-4N
+bedname	{bed}.sorted.mdup.flt.realigned.recal.genome.cov
+mincov	1; 6; 11
+overwrite	True
+mem	16G
+time	24::
+
+
+
+vcfFilterByBed.DNA.normal.bwa:
+cmd	filterVCFByBed
+toShell	export PATH=$PATH:/data/NYGC/Software/bedops/bin/
+vcfpath	/nethome/bjchen/Projects/Simon/DNA/vcf/normal_only/
+bedpath	/nethome/bjchen/Projects/Simon/RNA/bam_bwa/
+outputpath	/nethome/bjchen/Projects/Simon/DNA/vcf/normal_only/filterByRNACov_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	vcfbedNBWA
+vcf	132540-10N.allnormal.jointgatk.vcf.sorted; 138381-4N.allnormal.jointgatk.vcf.sorted
+bed	Sample_132540-10N; Sample_138381-4N
+bedname	{bed}.sorted.mdup.flt.realigned.recal.genome.cov
+mincov	1; 6; 11
+overwrite	True
+mem	16G
+time	24::
+
+vcfFilterByBed.DNA.normal.star:
+cmd	filterVCFByBed
+toShell	export PATH=$PATH:/data/NYGC/Software/bedops/bin/
+vcfpath	/nethome/bjchen/Projects/Simon/DNA/vcf/normal_only/
+bedpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+outputpath	/nethome/bjchen/Projects/Simon/DNA/vcf/normal_only/filterByRNACov_star/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	vcfbedNSTAR
+vcf	132540-10N.allnormal.jointgatk.vcf.sorted; 138381-4N.allnormal.jointgatk.vcf.sorted
+bed	Sample_132540-10N; Sample_138381-4N
+bedname	{bed}_Aligned.out.WithReadGroup.sorted.genome.cov.sorted
+mincov	1; 6; 11
+overwrite	True
+mem	16G
+time	24::
+
+
+
+#call variants with RNA data
+varCall.mutect.starqual:
+cmd	varCall
+callertag	mutect
+caller	muTect-1.1.4/muTect-1.1.4.jar
+toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
+programpath	/data/NYGC/Software/muTect/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/mutect_star/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	mutect_starQ
+--baqGapOpenPenalty	40
+--num_threads	1
+--reference_sequence	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+-Djava.io.tmpdir	=/scratch/BJC_TMP/
+--analysis_type	MuTect
+--dbsnp	/nethome/bjchen/Projects/Simon/dbsnp_132_b37.leftAligned.chrTag.vcf
+--cosmic	/nethome/bjchen/Projects/Simon/hg19_cosmic_v54_120711.chrTag.vcf
+--intervals	/nethome/bjchen/Projects/Simon/GRCh37_64.chrom.chrTag.intervals
+bam	=sample
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+overwrite	True
+mem	24G
+time	24::
+
+
+snpir.filter.RNA.somaticcaller.bwa:
+cmd	snpirfilter
+perl	/data/NYGC/Software/perl/perls/perl-5.18.0/bin/perl
+snpirpath	/data/NYGC/Resources/SNPiR/
+bedtoolspath	/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/
+geneannotation	/data/NYGC/Resources/SNPiR/ANNT/all_annotation.hg19
+repeatmask	/data/NYGC/Resources/SNPiR/ANNT/repeatmasker.hg19.bed
+rnaedit	/data/NYGC/Resources/SNPiR/ANNT/Human_AG_all_hg19.bed
+vcfpath	/nethome/bjchen/Projects/Simon/RNA/{callername}_bwa/
+bampath	/nethome/bjchen/Projects/Simon/RNA/bam_bwa/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/{callername}_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/data/NYGC/Resources/SNPiR/SEQ/hg19.fa
+somatic_caller	True
+removeedit	True
+prefix	srftRBwa
+callername	mutect; varscan; varscan; strelka; strelka; virmid
+vcfname	{vcf}.mutect.vcf; {vcf}.varscan.snv.vcf; {vcf}.varscan.indel.vcf; {vcf}.strelka.snv.vcf; {vcf}.strelka.indel.vcf; {vcf}.som.virmid.vcf
+bamname	Sample_{bam}.sorted.mdup.flt.realigned.recal.bam
+output	{vcfname}
+vcf	132540-10N_132540-1T; 138381-4N_138381-2T
+bam	132540-1T; 138381-2T
+overwrite	True
+mem	12G
+time	24::
+
+
+snpir.filter.RNA.somaticcaller.star:
+cmd	snpirfilter
+perl	/data/NYGC/Software/perl/perls/perl-5.18.0/bin/perl
+snpirpath	/data/NYGC/Resources/SNPiR/
+bedtoolspath	/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/
+geneannotation	/data/NYGC/Resources/SNPiR/ANNT/all_annotation.hg19
+repeatmask	/data/NYGC/Resources/SNPiR/ANNT/repeatmasker.hg19.bed
+rnaedit	/data/NYGC/Resources/SNPiR/ANNT/Human_AG_all_hg19.bed
+vcfpath	/nethome/bjchen/Projects/Simon/RNA/{callername}_star/
+bampath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/{callername}_star/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
+somatic_caller	True
+removeedit	True
+prefix	srftRnaSomatic
+callername	mutect; varscan; varscan; strelka; strelka; virmid
+vcfname	{vcf}.mdup.MQ100.mutect.vcf; {vcf}.mdup.varscan.snv.vcf; {vcf}.mdup.varscan.indel.vcf; {vcf}.mdup.strelka.snv.vcf; {vcf}.mdup.strelka.indel.vcf; {vcf}.mdup.som.virmid.vcf
+bamname	Sample_{bam}_Aligned.out.WithReadGroup.sorted.mdup.bam
+output	{vcfname}
+vcf	132540-10N_132540-1T; 138381-4N_138381-2T
+bam	132540-1T; 138381-2T
+overwrite	True
+mem	12G
+time	24::
+
+
+snpir.filter.DNA:
+cmd	snpirfilter
+perl	/data/NYGC/Software/perl/perls/perl-5.18.0/bin/perl
+snpirpath	/data/NYGC/Resources/SNPiR/
+bedtoolspath	/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/
+geneannotation	/data/NYGC/Resources/SNPiR/ANNT/all_annotation.hg19_noChr
+repeatmask	/data/NYGC/Resources/SNPiR/ANNT/repeatmasker.hg19_noChr.bed
+rnaedit	/data/NYGC/Resources/SNPiR/ANNT/Human_AG_all_hg19_noChr.bed
+vcfpath	/nethome/bjchen/Projects/Simon/DNA/vcf/originals/
+bampath	/nethome/bjchen/Projects/Simon/DNA/bam/
+outputpath	/nethome/bjchen/Projects/Simon/DNA/vcf/snpirfiltered/
+tmpoutpath	/scratch/BJC_TMP/
+reference	/data/NYGC/Resources/Indexes/bwa/human_g1k_v37.fasta
+somatic_caller	True
+runBLAT	True
+removeedit	True
+reStartAt	blat
+prefix	srftPIP
+callername	strelka; strelka; varscant; virmid
+vcfname	{vcf}.indel.strelka.v0.4.7.vcf; {vcf}.snv.strelka.v0.4.7.vcf; {vcf}.indel.varscan.v2.3.6.vcf; {vcf}.snv.virmid.v1.0.2.vcf
+#callername	mutect; varscan
+#vcfname	{vcf}.snv.mutect.somatic.v1.1.4.vcf; {vcf}.snv.varscan.somatic.v2.3.6.vcf
+bamname	{bam}.dedup.realigned.recal.bam
+output	{vcfname}
+vcf	132540-1T--132540-10N; 138381-2T--138381-4N
+bam	132540-1T; 138381-2T
+overwrite	True
+mem	12G
+time	24::
+
+
+
 vcfFilterByBed.DNA.snpirbwa:
 cmd	filterVCFByBed
 toShell	export PATH=$PATH:/data/NYGC/Software/bedops/bin/
 vcfpath	/nethome/bjchen/Projects/Simon/DNA/vcf/originals/
-bedpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+bedpath	/nethome/bjchen/Projects/Simon/RNA/bam_bwa/
 outputpath	/nethome/bjchen/Projects/Simon/DNA/vcf/filterByRNACov_bwa/
 tmpoutpath	/scratch/BJC_TMP/
-prefix	vcfbed
-vcf	130342-1T--130342-7N.indel.varscan.v2.3.6.vcf.sorted; 130342-1T--130342-7N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 130342-1T--130342-7N.snv.mutect.v1.1.4.vcf.sorted; 130342-1T--130342-7N.snv.somaticsniper.vcf.sorted; 130342-1T--130342-7N.snv.varscan.v2.3.6.vcf.sorted; 132540-1-T--132540-10-N.indel.varscan.v2.3.6.vcf.sorted; 132540-1-T--132540-10-N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 132540-1-T--132540-10-N.snv.mutect.v1.1.4.vcf.sorted; 132540-1-T--132540-10-N.snv.somaticsniper.vcf.sorted; 132540-1-T--132540-10-N.snv.varscan.v2.3.6.vcf.sorted; 138381-2-T--138381-4-N.indel.varscan.v2.3.6.vcf.sorted; 138381-2-T--138381-4-N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 138381-2-T--138381-4-N.snv.mutect.v1.1.4.vcf.sorted; 138381-2-T--138381-4-N.snv.somaticsniper.vcf.sorted; 138381-2-T--138381-4-N.snv.varscan.v2.3.6.vcf.sorted
-bed	Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N
+prefix	vcfbedBWA
+vcf	130342-1T--130342-7N.indel.varscan.v2.3.6.vcf.sorted; 130342-1T--130342-7N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 130342-1T--130342-7N.snv.mutect.v1.1.4.vcf.sorted; 130342-1T--130342-7N.snv.somaticsniper.vcf.sorted; 130342-1T--130342-7N.snv.varscan.v2.3.6.vcf.sorted; 132540-1T--132540-10N.indel.varscan.v2.3.6.vcf.sorted; 132540-1T--132540-10N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 132540-1T--132540-10N.snv.mutect.v1.1.4.vcf.sorted; 132540-1T--132540-10N.snv.somaticsniper.vcf.sorted; 132540-1T--132540-10N.snv.varscan.v2.3.6.vcf.sorted; 138381-2T--138381-4N.indel.varscan.v2.3.6.vcf.sorted; 138381-2T--138381-4N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 138381-2T--138381-4N.snv.mutect.v1.1.4.vcf.sorted; 138381-2T--138381-4N.snv.somaticsniper.vcf.sorted; 138381-2T--138381-4N.snv.varscan.v2.3.6.vcf.sorted; 130342-1T--130342-7N.indel.strelka.v0.4.7.vcf.sorted; 130342-1T--130342-7N.snv.strelka.v0.4.7.vcf.sorted; 130342-1T--130342-7N.snv.virmid.v1.0.2.vcf.sorted; 132540-1T--132540-10N.indel.strelka.v0.4.7.vcf.sorted; 132540-1T--132540-10N.snv.strelka.v0.4.7.vcf.sorted; 132540-1T--132540-10N.snv.virmid.v1.0.2.vcf.sorted; 138381-2T--138381-4N.indel.strelka.v0.4.7.vcf.sorted; 138381-2T--138381-4N.snv.strelka.v0.4.7.vcf.sorted; 138381-2T--138381-4N.snv.virmid.v1.0.2.vcf.sorted
+bed	Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N
 bedname	{bed}.sorted.mdup.flt.realigned.recal.genome.cov
 mincov	1; 6; 11
 overwrite	True
@@ -104,6 +399,31 @@ mem	16G
 time	24::
 
 
+#Virmid call for RNA
+varCall.virmid.bwa:
+cmd	varCall
+toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
+callertag	virmid
+caller	virmid-1.0.2/Virmid.jar
+programpath	/data/NYGC/Software/virmid/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/snpir/bam/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/virmid_bwa/
+tmpoutpath	/scratch/BJC_TMP/
+prefix	vB
+-R	/data/NYGC/Resources/SNPiR/SEQ/hg19.fa
+-c	10
+-C	200
+-q	1
+-f
+bam	=sample
+normalsample	Sample_138381-4N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam; Sample_132540-10N.sorted.mdup.flt.realigned.recal.bam
+tumorsample	Sample_138381-2T.sorted.mdup.flt.realigned.recal.bam; Sample_132540-1T.sorted.mdup.flt.realigned.recal.bam; Sample_137064-1T.sorted.mdup.flt.realigned.recal.bam; Sample_139508-1T.sorted.mdup.flt.realigned.recal.bam
+overwrite	True
+mem	16G
+time	24::
+
+
+
 snpir.filter.RNA.STAR:
 cmd	snpirfilter
 perl	/data/NYGC/Software/perl/perls/perl-5.18.0/bin/perl
@@ -113,17 +433,17 @@ geneannotation	/data/NYGC/Resources/SNPiR/ANNT/all_annotation.hg19
 repeatmask	/data/NYGC/Resources/SNPiR/ANNT/repeatmasker.hg19.bed
 rnaedit	/data/NYGC/Resources/SNPiR/ANNT/Human_AG_all_hg19.bed
 bampath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
-vcfpath	/nethome/bjchen/Projects/Simon/RNA/gatk_bwa/
-outputpath	/nethome/bjchen/Projects/Simon/RNA/gatk_bwa/
+vcfpath	/nethome/bjchen/Projects/Simon/RNA/gatk_star/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/gatk_star/
 tmpoutpath	/scratch/BJC_TMP/
 reference	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
 varqual	20
 prefix	snpirfilter
-vcfname	{vcf}.variant.vcf
-bamname	{bam}_Aligned.out.WithReadGroup.sorted.mdup.bam
+vcfname	{vcf}.vcf
+bamname	Sample_{bam}_Aligned.out.WithReadGroup.sorted.mdup.flt.realigned.recal.bam
 output	{bam}
 vcf	132540-10N; 138381-4N; 132540-1T; 138381-2T; 137064-1T; 139508-1T; 
-bam	Sample_132540-10N; Sample_138381-4N; Sample_132540-1T; Sample_138381-2T; Sample_137064-1T; Sample_139508-1T
+bam	132540-10N; 138381-4N; 132540-1T; 138381-2T; 137064-1T; 139508-1T
 overwrite	True
 mem	12G
 time	24::
@@ -133,19 +453,20 @@ cmd	GATK_genotyper
 java	/data/NYGC/Software/java/jre1.7.0_25/bin/java
 gatkjar	/data/NYGC/Software/GenomeAnalysisTK/GenomeAnalysisTK-2.7-2-g6bda569/GenomeAnalysisTK.jar 
 inputpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
-outputpath	/nethome/bjchen/Projects/Simon/RNA/gatk_bwa/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/gatk_star/
 tmpoutpath	/scratch/BJC_TMP/
 reference	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
-KGMILLS	/data/NYGC/Resources/GatkBundle/2.5/hg19/Mills_and_1000G_gold_standard.indels.hg19.vcf
-KGINDEL	/data/NYGC/Resources/GatkBundle/2.5/hg19/1000G_phase1.indels.hg19.vcf
-DBSNP	/data/NYGC/Resources/GatkBundle/2.5/hg19/dbsnp_137.hg19.vcf
-num_core	8
-num_thread_core	4
+KGMILLS	/data/NYGC/Resources/GatkBundle/2.5/hg19/Mills_and_1000G_gold_standard.indels.hg19.chrMEndOrder.vcf
+KGINDEL	/data/NYGC/Resources/GatkBundle/2.5/hg19/1000G_phase1.indels.hg19.chrMEndOrder.vcf
+DBSNP	/data/NYGC/Resources/GatkBundle/2.5/hg19/dbsnp_137.hg19.chrMEndOrder.vcf
+num_core	1
+num_thread_core	1
 -glm	BOTH
 -stand_call_conf	0
 -stand_emit_conf	0
+passon	-rf ReassignOneMappingQuality -RMQF 255 -RMQT 60
 prefix	snpirgeno
-input	{sample}_Aligned.out.WithReadGroup.sorted.mdup.bam
+input	{sample}_Aligned.out.WithReadGroup.sorted.mdup.flt.realigned.recal.bam
 groupname	132540-10N; 138381-4N; 132540-1T; 138381-2T; 137064-1T; 139508-1T; 132540; 138381; 132540-138381-N; 132540-138381-T; 132540-138381-all
 group	Sample_132540-10N; Sample_138381-4N; Sample_132540-1T; Sample_138381-2T; Sample_137064-1T; Sample_139508-1T; Sample_132540-10N, Sample_132540-1T, Sample_137064-1T, Sample_139508-1T; Sample_138381-4N, Sample_138381-2T; Sample_132540-10N, Sample_138381-4N; Sample_132540-1T, Sample_137064-1T, Sample_139508-1T, Sample_138381-2T; Sample_132540-10N, Sample_138381-4N, Sample_132540-1T, Sample_137064-1T, Sample_139508-1T, Sample_138381-2T
 overwrite	True
@@ -161,9 +482,9 @@ inputpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
 outputpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
 tmpoutpath	/scratch/BJC_TMP/
 reference	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
-KGMILLS	/data/NYGC/Resources/GatkBundle/2.5/hg19/Mills_and_1000G_gold_standard.indels.hg19.vcf
-KGINDEL	/data/NYGC/Resources/GatkBundle/2.5/hg19/1000G_phase1.indels.hg19.vcf
-DBSNP	/data/NYGC/Resources/GatkBundle/2.5/hg19/dbsnp_137.hg19.vcf
+KGMILLS	/data/NYGC/Resources/GatkBundle/2.5/hg19/Mills_and_1000G_gold_standard.indels.hg19.chrMEndOrder.vcf
+KGINDEL	/data/NYGC/Resources/GatkBundle/2.5/hg19/1000G_phase1.indels.hg19.chrMEndOrder.vcf
+DBSNP	/data/NYGC/Resources/GatkBundle/2.5/hg19/dbsnp_137.hg19.chrMEndOrder.vcf
 num_thread	8
 -q	20
 -F	1028
@@ -181,12 +502,12 @@ vcfFilterByBed.DNA.star:
 cmd	filterVCFByBed
 toShell	export PATH=$PATH:/data/NYGC/Software/bedops/bin/
 vcfpath	/nethome/bjchen/Projects/Simon/DNA/vcf/originals/
-bedpath	/nethome/bjchen/Projects/Simon/RNA/bam/
-outputpath	/nethome/bjchen/Projects/Simon/DNA/vcf/filterByRNACov/
+bedpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+outputpath	/nethome/bjchen/Projects/Simon/DNA/vcf/filterByRNACov_star/
 tmpoutpath	/scratch/BJC_TMP/
-prefix	vcfbed
-vcf	130342-1T--130342-7N.indel.varscan.v2.3.6.vcf.sorted; 130342-1T--130342-7N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 130342-1T--130342-7N.snv.mutect.v1.1.4.vcf.sorted; 130342-1T--130342-7N.snv.somaticsniper.vcf.sorted; 130342-1T--130342-7N.snv.varscan.v2.3.6.vcf.sorted; 132540-1-T--132540-10-N.indel.varscan.v2.3.6.vcf.sorted; 132540-1-T--132540-10-N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 132540-1-T--132540-10-N.snv.mutect.v1.1.4.vcf.sorted; 132540-1-T--132540-10-N.snv.somaticsniper.vcf.sorted; 132540-1-T--132540-10-N.snv.varscan.v2.3.6.vcf.sorted; 138381-2-T--138381-4-N.indel.varscan.v2.3.6.vcf.sorted; 138381-2-T--138381-4-N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 138381-2-T--138381-4-N.snv.mutect.v1.1.4.vcf.sorted; 138381-2-T--138381-4-N.snv.somaticsniper.vcf.sorted; 138381-2-T--138381-4-N.snv.varscan.v2.3.6.vcf.sorted
-bed	Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N
+prefix	vcfbedSTAR
+vcf	130342-1T--130342-7N.indel.varscan.v2.3.6.vcf.sorted; 130342-1T--130342-7N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 130342-1T--130342-7N.snv.mutect.v1.1.4.vcf.sorted; 130342-1T--130342-7N.snv.somaticsniper.vcf.sorted; 130342-1T--130342-7N.snv.varscan.v2.3.6.vcf.sorted; 132540-1T--132540-10N.indel.varscan.v2.3.6.vcf.sorted; 132540-1T--132540-10N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 132540-1T--132540-10N.snv.mutect.v1.1.4.vcf.sorted; 132540-1T--132540-10N.snv.somaticsniper.vcf.sorted; 132540-1T--132540-10N.snv.varscan.v2.3.6.vcf.sorted; 138381-2T--138381-4N.indel.varscan.v2.3.6.vcf.sorted; 138381-2T--138381-4N.snv.joint.somaticsniper.v1.0.2.cf.sorted; 138381-2T--138381-4N.snv.mutect.v1.1.4.vcf.sorted; 138381-2T--138381-4N.snv.somaticsniper.vcf.sorted; 138381-2T--138381-4N.snv.varscan.v2.3.6.vcf.sorted; 130342-1T--130342-7N.indel.strelka.v0.4.7.vcf.sorted; 130342-1T--130342-7N.snv.strelka.v0.4.7.vcf.sorted; 130342-1T--130342-7N.snv.virmid.v1.0.2.vcf.sorted; 132540-1T--132540-10N.indel.strelka.v0.4.7.vcf.sorted; 132540-1T--132540-10N.snv.strelka.v0.4.7.vcf.sorted; 132540-1T--132540-10N.snv.virmid.v1.0.2.vcf.sorted; 138381-2T--138381-4N.indel.strelka.v0.4.7.vcf.sorted; 138381-2T--138381-4N.snv.strelka.v0.4.7.vcf.sorted; 138381-2T--138381-4N.snv.virmid.v1.0.2.vcf.sorted
+bed	Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_130342-1T, Sample_130342-7N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_132540-1T, Sample_132540-10N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N; Sample_138381-2T, Sample_138381-4N
 bedname	{bed}_Aligned.out.WithReadGroup.sorted.genome.cov.sorted
 mincov	1; 6; 11
 overwrite	True
@@ -197,19 +518,19 @@ time	24::
 varCall.strelka:
 cmd	varCall
 callertag	strelka
-caller	strelka-v0.4.7/configureStrelkaWorkflow.pl
+caller	strelka-v1.0.12/bin/configureStrelkaWorkflow.pl
 programpath	/data/NYGC/Software/strelka/
-inputpath	/nethome/bjchen/Projects/Simon/RNA/bam/
-outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/strelka_star/V1.0.12/
 tmpoutpath	/scratch/BJC_TMP/
 prefix	strelka
 --ref	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
 --config	/nethome/bjchen/Projects/Simon/strelka_config_rna.ini
 bam	=sample
-normalsample	Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
-#; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
-tumorsample	Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
-#; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
+#normalsample	Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
+#tumorsample	Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam
+tumorsample	Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
 overwrite	True
 mem	16G
 time	24::
@@ -223,18 +544,20 @@ toShell	java=/usr/lib/jvm/java-1.6.0-openjdk-1.6.0.0.x86_64/jre/bin/java
 callertag	virmid
 caller	virmid-1.0.2/Virmid.jar
 programpath	/data/NYGC/Software/virmid/
-inputpath	/nethome/bjchen/Projects/Simon/RNA/bam/
-outputpath	/nethome/bjchen/Projects/Simon/RNA/varcall/
+inputpath	/nethome/bjchen/Projects/Simon/RNA/bam_star/
+outputpath	/nethome/bjchen/Projects/Simon/RNA/virmid_star/
 tmpoutpath	/scratch/BJC_TMP/
 prefix	virmid
 -R	/nethome/bjchen/Projects/Simon/h37_hg19_chrOnly.fa
 -c	10
--C	200
--q	50
+-C	100
+-q	1
 -f
 bam	=sample
-normalsample	Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
-tumorsample	Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
+normalsample	Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
+tumorsample	Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
+#normalsample	Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-4N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_132540-10N_Aligned.out.WithReadGroup.sorted.mdup.bam
+#tumorsample	Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.AS.bam; Sample_132540-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_138381-2T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_137064-1T_Aligned.out.WithReadGroup.sorted.mdup.bam; Sample_139508-1T_Aligned.out.WithReadGroup.sorted.mdup.bam
 overwrite	True
 mem	16G
 time	24::

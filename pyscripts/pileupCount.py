@@ -109,13 +109,18 @@ def pileupToCount(samout, out, args, para, singlesite=False):
     outbuffer = ''
     while line:
         line = line.split() #chr, pos, ref, #read, read_bases, read_qual, pos_in_read (if ignoreEnd is specified)
+
+        if int(line[3]) < args.r: 
+            line = samout.readline()
+            continue
         line[4] = excludePattern.sub('', line[4])
+
         if args.ignoreEnd > 0:
             line[6] = [ int(p) for p in line[6].split(',') ]
         if para.manualFilterBaseQ > 0 or args.ignoreEnd > 0:
             line = manualFilterBase(line, args, para)
 
-        if int(line[3]) >= args.r:
+        if int(line[3]) >= args.r: #need to check again because reads might be filtered out if manualFilterBaseQ is turned on
             if not args.stranded: 
                 line[4] = line[4].upper().replace(',','.').replace('<','>')
             
@@ -146,7 +151,7 @@ def pileupToCount(samout, out, args, para, singlesite=False):
                 #out.write('\t'.join(line[:4]) + '\t' + baseCountString + '\n')            
                 outbuffer = outbuffer + '\t'.join(line[:4]) + '\t' + baseCountString + '\n'
 
-        count = count + 1
+            count = count + 1
 
         if count%100 == 0:
             out.write(outbuffer)

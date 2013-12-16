@@ -81,5 +81,22 @@ classdef AlleleCountData < handle
         end
         
     end
+    
+    methods (Static)
+        function data = readTableFormatOutput(filename)
+            f = fopen(filename, 'r');
+            line = fgetl(f);
+            fclose(f);
+            token = textscan(line, '%s');
+            ncol = length(token{1});
+            t = parseText(filename, 'nrowname', 0, 'ncolname', 1, 'numericcol', [2 4:ncol]);
+            data.loc = [ numericchrm(t.text(:,strcmp(t.colname, 'chr'))) t.numtext(:,strcmp(t.numcolname, 'pos')) ];
+            data.ref = t.text(:, strcmp(t.colname, 'ref'));
+            data.numread = t.numtext(:, strcmp(t.numcolname, '#read'));
+            ntbaseidx = ~ismember(t.numcolname, {'pos', '#read'});
+            data.ntbase = t.numcolname( ntbaseidx);
+            data.count = t.numtext(:, ntbaseidx);
+        end
+    end
 end
 

@@ -1,7 +1,7 @@
 
 plotfig.D2sR2s = false;
 plotfig.D3cR1c = false;
-plotfig.DRsiam
+
 
 
 if ~exist('RnaVarLoc', 'var')
@@ -59,65 +59,65 @@ if ~isfield(DnaVarLoc, 'somatic')
    clear DnaVarLoc_somatic
 end
 
-if ~isfield(DnaVarLoc, 'exonutr')
-   if ~exist('GENCODE_exon_utr', 'var')
-       load GENCODE_exon_utr.mat
-   end    
-   DnaVarLoc.exonutr = cell(length(DnaVarLoc.fns),1);
-   for i = 1:length(DnaVarLoc.fns)
-       DnaVarLoc.exonutr{i} = false(length(DnaVarLoc.locindex{i}),1);
-       for chridx = 1:25
-           nblk = ceil(max(DnaVarLoc.loc{i}( DnaVarLoc.loc{i}(:,1)==chridx,2)) /1e7);
-           if isempty(nblk), continue; end
-           for blkidx = 1:nblk
-               lmin = (blkidx-1)*1e7+1;
-               lmax = blkidx*1e7;
-               vidx = DnaVarLoc.loc{i}(:,1) == chridx & ...
-                   DnaVarLoc.loc{i}(:,2) >= lmin & DnaVarLoc.loc{i}(:,2) <= lmax;
-               antidx = GENCODE_exon_utr.chrm == chridx & ...
-                   GENCODE_exon_utr.start >= lmin & GENCODE_exon_utr.end <= lmax;
-               DnaVarLoc.exonutr{i}(vidx) = any(bsxfun(@ge, DnaVarLoc.loc{i}(vidx,2), GENCODE_exon_utr.start(antidx)') ...
-                   & bsxfun(@le, DnaVarLoc.loc{i}(vidx,2), GENCODE_exon_utr.end(antidx)'), 2);
-           end
-       end
-   end
-   clear GENCODE_exon_utr
-end
-
-if ~isfield(RnaVarLoc, 'exonutr')
-    if ~exist('GENCODE_exon_utr', 'var')
-	load GENCODE.exonutr.v16.mat
-    end   
-    stepsize = 200;
-    exonstartidx = gloc2index(GENCODE_exon_utr.chrm, GENCODE_exon_utr.start);
-    exonendidx = gloc2index(GENCODE_exon_utr.chrm, GENCODE_exon_utr.end);
-    fds = fieldnames(RnaVarLoc);
-    for fdidx = 1:length(fds)
-        RnaVarLoc.(fds{fdidx}).exonutr = cell(size(RnaVarLoc.(fds{fdidx}).locindex));
-        for i = 1:size(RnaVarLoc.(fds{fdidx}).locindex,1)
-            for j = 1:size(RnaVarLoc.(fds{fdidx}).locindex, 2)
-                if ~isempty(RnaVarLoc.(fds{fdidx}).locindex{i,j})
-                    RnaVarLoc.(fds{fdidx}).exonutr{i,j} = false(length(RnaVarLoc.(fds{fdidx}).locindex{i,j}),1);
-                    step = round(length(RnaVarLoc.(fds{fdidx}).locindex{i,j})/stepsize);
-                    for stepidx = 1:stepsize
-                        if stepidx < stepsize
-                            subidx = (stepidx-1)*step+1:stepidx*step;
-                        else
-                            subidx = (stepidx-1)*step+1:length(RnaVarLoc.(fds{fdidx}).locindex{i,j});
-                        end
-                        exonvi = exonstartidx < max(RnaVarLoc.(fds{fdidx}).locindex{i,j}(subidx));
-                        exonvi = exonvi & exonendidx > min(RnaVarLoc.(fds{fdidx}).locindex{i,j}(subidx));                        
-                        RnaVarLoc.(fds{fdidx}).exonutr{i,j}(subidx) = ...
-                            any(bsxfun(@ge, RnaVarLoc.(fds{fdidx}).locindex{i,j}(subidx), exonstartidx(exonvi)') ...
-                            & bsxfun(@le, RnaVarLoc.(fds{fdidx}).locindex{i,j}(subidx), exonendidx(exonvi)'), 2);                        
-                    end                    
-                end
-            end
-        end
-    end
-    clear GENCODE_exon_utr
-    save data/RnaVarLoc.new.mat RnaVarLoc
-end
+% if ~isfield(DnaVarLoc, 'exonutr')
+%    if ~exist('GENCODE_exon_utr', 'var')
+%        load GENCODE_exon_utr.mat
+%    end    
+%    DnaVarLoc.exonutr = cell(length(DnaVarLoc.fns),1);
+%    for i = 1:length(DnaVarLoc.fns)
+%        DnaVarLoc.exonutr{i} = false(length(DnaVarLoc.locindex{i}),1);
+%        for chridx = 1:25
+%            nblk = ceil(max(DnaVarLoc.loc{i}( DnaVarLoc.loc{i}(:,1)==chridx,2)) /1e7);
+%            if isempty(nblk), continue; end
+%            for blkidx = 1:nblk
+%                lmin = (blkidx-1)*1e7+1;
+%                lmax = blkidx*1e7;
+%                vidx = DnaVarLoc.loc{i}(:,1) == chridx & ...
+%                    DnaVarLoc.loc{i}(:,2) >= lmin & DnaVarLoc.loc{i}(:,2) <= lmax;
+%                antidx = GENCODE_exon_utr.chrm == chridx & ...
+%                    GENCODE_exon_utr.start >= lmin & GENCODE_exon_utr.end <= lmax;
+%                DnaVarLoc.exonutr{i}(vidx) = any(bsxfun(@ge, DnaVarLoc.loc{i}(vidx,2), GENCODE_exon_utr.start(antidx)') ...
+%                    & bsxfun(@le, DnaVarLoc.loc{i}(vidx,2), GENCODE_exon_utr.end(antidx)'), 2);
+%            end
+%        end
+%    end
+%    clear GENCODE_exon_utr
+% end
+% 
+% if ~isfield(RnaVarLoc, 'exonutr')
+%     if ~exist('GENCODE_exon_utr', 'var')
+% 	load GENCODE.exonutr.v16.mat
+%     end   
+%     stepsize = 200;
+%     exonstartidx = gloc2index(GENCODE_exon_utr.chrm, GENCODE_exon_utr.start);
+%     exonendidx = gloc2index(GENCODE_exon_utr.chrm, GENCODE_exon_utr.end);
+%     fds = fieldnames(RnaVarLoc);
+%     for fdidx = 1:length(fds)
+%         RnaVarLoc.(fds{fdidx}).exonutr = cell(size(RnaVarLoc.(fds{fdidx}).locindex));
+%         for i = 1:size(RnaVarLoc.(fds{fdidx}).locindex,1)
+%             for j = 1:size(RnaVarLoc.(fds{fdidx}).locindex, 2)
+%                 if ~isempty(RnaVarLoc.(fds{fdidx}).locindex{i,j})
+%                     RnaVarLoc.(fds{fdidx}).exonutr{i,j} = false(length(RnaVarLoc.(fds{fdidx}).locindex{i,j}),1);
+%                     step = round(length(RnaVarLoc.(fds{fdidx}).locindex{i,j})/stepsize);
+%                     for stepidx = 1:stepsize
+%                         if stepidx < stepsize
+%                             subidx = (stepidx-1)*step+1:stepidx*step;
+%                         else
+%                             subidx = (stepidx-1)*step+1:length(RnaVarLoc.(fds{fdidx}).locindex{i,j});
+%                         end
+%                         exonvi = exonstartidx < max(RnaVarLoc.(fds{fdidx}).locindex{i,j}(subidx));
+%                         exonvi = exonvi & exonendidx > min(RnaVarLoc.(fds{fdidx}).locindex{i,j}(subidx));                        
+%                         RnaVarLoc.(fds{fdidx}).exonutr{i,j}(subidx) = ...
+%                             any(bsxfun(@ge, RnaVarLoc.(fds{fdidx}).locindex{i,j}(subidx), exonstartidx(exonvi)') ...
+%                             & bsxfun(@le, RnaVarLoc.(fds{fdidx}).locindex{i,j}(subidx), exonendidx(exonvi)'), 2);                        
+%                     end                    
+%                 end
+%             end
+%         end
+%     end
+%     clear GENCODE_exon_utr
+%     save data/RnaVarLoc.new.mat RnaVarLoc
+% end
 
 
 figdir = 'figures/rnavar/overlapdna/';

@@ -34,6 +34,7 @@ def filterVCFByBed(cmdset, runmode='test'):
 
     #intersect = '/data/NYGC/Software/bedtools/bedtools-2.17.0/bin/bedtools intersect -a {vcfpath}{vcf} -b <(gawk \'{{OFS="\\t"; if($4 >={mincov}){{ print $0}}}}\' {bedpath}{bed}) -u -sorted > {output}.filtered.0.vcf'
     union = 'sort -u {output1}.cov{mincov}.bed {output2}.cov{mincov}.bed > {output}.cov{mincov}.bed'
+    intersect2 = 'bedops -e -1 <( cat {output1}.cov{mincov}.bed) <( cat {output2}.cov{mincov}.bed) > {output}.intersect.cov{mincov}.bed'
 
     cmdset = configRobot.makeParasList(cmdset, ['vcf','bed', 'mincov'])
     prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
@@ -64,7 +65,9 @@ def filterVCFByBed(cmdset, runmode='test'):
                 cmdset['bed'] = cmdset['bedname'].format(bed=bed[i-1])
                 cmdset['output%d'%i] = outputbase + '_' + cmdset['bed'] 
                 CMDs.append( intersect.format(output=cmdset['output%d'%i], **cmdset ) )
-            CMDs.append( union.format( output=outputbase, **cmdset ) )
+            if len(bed) > 1:
+                CMDs.append( union.format( output=outputbase, **cmdset ) )
+                CMDs.append( intersect2.format( output=outputbase, **cmdset) )
         CMDs.append( cmdGenerator.formatCmd( 'mv {sampletmpoutpath}*.bed {outputpath}'.format(sampletmpoutpath=sampletmpoutpath, outputpath=outputpath) )) 
         CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
 
@@ -119,13 +122,19 @@ def snpeff(cmdset, runmode='test'):
     return jobmanager
 
 
-def snpirfilter(cmdset, runmode='test'):
+def snpirfilter_virmidall(cmdset, runmode='test'):
     if runmode == 'test':
         createpath = False
     else:
         createpath = True
-    
-    vcfconvert = 'bash {snpirpath}/convertVCF.sh {inputvcf} {output}.txt {varqual} '
+
+    catvcf1 = '''egrep -v ^# {vcfpath}{vcf}.germ.virmid.vcf | gawk '{{OFS="\\t"; $7=$7"_GERM"; print $0}}' > {tmpdata}'''
+    catvcf2 = '''egrep -v ^# {vcfpath}{vcf}.loh.virmid.vcf | gawk '{{OFS="\\t"; $7=$7"_LOH"; print $0}}' >> {tmpdata}'''
+    catvcf3 = 'egrep -v ^# {vcfpath}{vcf}.som.virmid.vcf  >> {tmpdata}'
+    headvcf = 'egrep ^# {vcfpath}{vcf}.som.virmid.vcf > {vcfpath}{vcf}.all.virmid.vcf'
+    mergevcf = 'sort -k1,1 -k2,2n {tmpdata} >> {vcfpath}{vcf}.all.virmid.vcf'
+
+    vcf_somatic_caller_convert = 'bash {snpirpath}/convertVCF_somatic_caller.sh {inputvcf} {output}.txt {callername}'
     rmmismatch = '{perl} {snpirpath}/filter_mismatch_first6bp.pl -infile {output}.txt -outfile {output}.rmhex.txt -bamfile {inputbam}'
     rmrepeat = '''awk '{{OFS="\\t";$2=$2-1"\\t"$2;print $0}}' {output}.rmhex.txt | {bedtoolspath}/intersectBed -a stdin -b {repeatmask} -v | cut -f1,3-7 > {output}.rmhex.rmsk.txt'''
     rmintron = '{perl} {snpirpath}/filter_intron_near_splicejuncts.pl -infile {output}.rmhex.rmsk.txt -outfile {output}.rmhex.rmsk.rmintron.txt -genefile {geneannotation}'
@@ -133,16 +142,27 @@ def snpirfilter(cmdset, runmode='test'):
     blat = '{perl} {snpirpath}/BLAT_candidates.pl -infile {output}.rmhex.rmsk.rmintron.rmhom.txt -outfile {output}.rmhex.rmsk.rmintron.rmhom.rmblat.txt -bamfile {inputbam} -refgenome {reference} '
     rmedit = '''awk '{{OFS="\\t";$2=$2-1"\\t"$2;print $0}}' {output}.rmhex.rmsk.rmintron.rmhom.rmblat.txt | {bedtoolspath}/intersectBed -a stdin -b {rnaedit} -v > {output}.rmhex.rmsk.rmintron.rmhom.rmblat.rmedit.bed'''
 
-    cmdset = configRobot.makeParasList(cmdset, ['vcf','sample'])
+    filters = [catvcf1, catvcf2, catvcf3, headvcf, mergevcf, vcf_somatic_caller_convert, rmmismatch, rmrepeat, rmintron, rmhomopoly, blat, rmedit]
+
+    if 'removeedit' not in cmdset:
+        cmdset['removeedit'] = True
+    else:
+        if cmdset['removeedit'] == 'True': cmdset['removeedit'] = True
+        else: cmdset['removeedit'] = False
+    if not cmdset['removeedit']:
+        filters = filters[:-1]
+
+    cmdset = configRobot.makeParasList(cmdset, ['vcf','sample', 'vcfname'])
     prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
     vcfpath = cmdGenerator.checkPath(cmdset.pop('vcfpath'))
+    cmdset['vcfpath'] = vcfpath
     bampath = cmdGenerator.checkPath(cmdset.pop('bampath'))
-    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'), create=createpath)
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'))#, create=createpath)
     tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
     vcfs, bams = configRobot.popParas(cmdset, ['vcf', 'bam'])
 
     mem = cmdset['mem']
-    vcfname = cmdset.pop('vcfname')
+    vcfnames = cmdset.pop('vcfname')
     bamname = cmdset.pop('bamname')
     outputname = cmdset.pop('output')
     if 'num_core' not in cmdset: cmdset['num_core'] = 1
@@ -151,26 +171,143 @@ def snpirfilter(cmdset, runmode='test'):
     else:
         sgeopt = []
 
+    nvcf = len(vcfnames)
+    if 'callername' in cmdset:
+        callernames = cmdset.pop('callername')
+        if type(callernames) == type('caller'): callernames = [callernames]*nvcf
+    else:
+        callernames = ['']*nvcf
+
     jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
 
-    for vcf, bam in zip(vcfs, bams): #one job per group
-        cmdset['vcf'] = vcf
-        cmdset['bam'] = bam
-        cmdset['inputvcf'] = vcfpath + vcfname.format( **cmdset )
-        cmdset['inputbam'] = bampath + bamname.format( **cmdset )
-        jobprefix = prefix + outputname.format(**cmdset)
-        sampletmpoutpath = tmpoutpath + '_'.join([prefix, outputname.format(**cmdset), randstr()]) + '/'
-        cmdset['output'] = sampletmpoutpath + outputname.format( **cmdset )
-        CMDs = []
-        if 'toShell' in cmdset.keys():
-            CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
-        CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
-        for subcmd in [vcfconvert, rmmismatch, rmrepeat, rmintron, rmhomopoly, blat, rmedit]:
-            CMDs.append( subcmd.format( **cmdset ) )
-        CMDs.append( cmdGenerator.formatCmd( 'mv {sampletmpoutpath}* {outputpath}'.format(sampletmpoutpath=sampletmpoutpath, outputpath=outputpath) )) 
-        CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
+    for vcf, bam in zip(vcfs, bams): 
+        for vcfname, callername in zip(vcfnames, callernames): #one job per group
+            CMDs = []
+            cmdset['callername'] = callername
+            cmdset['vcf'] = vcf
+            cmdset['bam'] = bam
+            cmdset['vcfname'] = vcfname.format( **cmdset)
+            cmdset['inputvcf'] = vcfpath.format( **cmdset) + vcfname.format( **cmdset )
+            cmdset['inputbam'] = bampath.format( **cmdset)  + bamname.format( **cmdset )
+            jobprefix = prefix + outputname.format(**cmdset)
+            sampletmpoutpath = tmpoutpath + '_'.join([prefix, outputname.format(**cmdset), randstr()]) + '/'
+            cmdset['tmpdata'] = sampletmpoutpath + 'tmpdata'
+            cmdset['output'] = sampletmpoutpath + outputname.format( **cmdset )
+            if 'toShell' in cmdset.keys():
+                CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
+            CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+            for subcmd in filters:
+                CMDs.append( subcmd.format( **cmdset ) )
+            CMDs.append( cmdGenerator.formatCmd( 'rm -f {tmpdata}'.format(**cmdset)) )
+            CMDs.append( cmdGenerator.formatCmd( 'mv {sampletmpoutpath}* {outputpath}'.format(sampletmpoutpath=sampletmpoutpath, outputpath=outputpath.format(**cmdset)) )) 
+            CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath.format(**cmdset))) )
 
-        jobmanager.createJob(jobprefix, CMDs, outpath = outputpath, outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
+            jobmanager.createJob(jobprefix, CMDs, outpath = outputpath.format(**cmdset), outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
+    return jobmanager
+
+
+
+def snpirfilter(cmdset, runmode='test'):
+    if runmode == 'test':
+        createpath = False
+    else:
+        createpath = True
+    outputnametb = {'vcfconvert': '{output}.txt', 'rmmismatch':'{output}.rmhex.txt', 'rmrepeat':'{output}.rmhex.rmsk.txt', 'rmintron':'{output}.rmhex.rmsk.rmintron.txt', 'rmhomopoly':'{output}.rmhex.rmsk.rmintron.rmhom.txt', 'blat':'{output}.rmhex.rmsk.rmintron.rmhom.rmblat.txt', 'rmedit':'{output}.rmhex.rmsk.rmintron.rmhom.rmblat.rmedit.bed'}
+    vcfconvert = 'bash {snpirpath}/convertVCF.sh {inputvcf} {output}.txt {varqual} '
+    vcf_somatic_caller_convert = 'bash {snpirpath}/convertVCF_somatic_caller.sh {inputvcf} {output}.txt {callername}'
+    rmmismatch = '{perl} {snpirpath}/filter_mismatch_first6bp.pl -infile {vcfconvert} -outfile {output}.rmhex.txt -bamfile {inputbam}'
+    rmrepeat = '''awk '{{OFS="\\t";$2=$2-1"\\t"$2;print $0}}' {output}.rmhex.txt | {bedtoolspath}/intersectBed -a stdin -b {repeatmask} -v | cut -f1,3-7 > {output}.rmhex.rmsk.txt'''
+    rmintron = '{perl} {snpirpath}/filter_intron_near_splicejuncts.pl -infile {output}.rmhex.rmsk.txt -outfile {output}.rmhex.rmsk.rmintron.txt -genefile {geneannotation}'
+    rmhomopoly = '{perl} {snpirpath}/filter_homopolymer_nucleotides.pl -infile {output}.rmhex.rmsk.rmintron.txt -outfile {output}.rmhex.rmsk.rmintron.rmhom.txt -refgenome {reference} '
+    blat = '{perl} {snpirpath}/BLAT_candidates.pl -infile {output}.rmhex.rmsk.rmintron.rmhom.txt -outfile {output}.rmhex.rmsk.rmintron.rmhom.rmblat.txt -bamfile {inputbam} -refgenome {reference} '
+    rmedit = '''awk '{{OFS="\\t";$2=$2-1"\\t"$2;print $0}}' {output}.rmhex.rmsk.rmintron.rmhom.rmblat.txt | {bedtoolspath}/intersectBed -a stdin -b {rnaedit} -v > {output}.rmhex.rmsk.rmintron.rmhom.rmblat.rmedit.bed'''
+
+    filters = [vcfconvert, rmmismatch, rmrepeat, rmintron, rmhomopoly] #, blat, rmedit]
+    if 'somatic_caller' not in cmdset:
+        cmdset['somatic_caller'] = False
+    else:
+        if cmdset['somatic_caller'] == 'True': cmdset['somatic_caller'] = True
+        else: cmdset['somatic_caller'] = False
+    if 'removeedit' not in cmdset:
+        cmdset['removeedit'] = True
+    else:
+        if cmdset['removeedit'] == 'True': cmdset['removeedit'] = True
+        else: cmdset['removeedit'] = False
+    if 'runBLAT' not in cmdset:
+        cmdset['runBLAT'] = True
+    else:
+        if cmdset['runBLAT'] == 'True': cmdset['runBLAT'] = True
+        else: cmdset['runBLAT'] = False
+    if cmdset['somatic_caller']:
+        filters[0] = vcf_somatic_caller_convert
+
+    if cmdset['runBLAT']: filters.append(blat)
+    if cmdset['removeedit']: filters.append(rmedit)
+
+    filternameset = ['vcfconvert', 'rmmismatch', 'rmrepat', 'rmintron', 'rmhomopoly', 'blat', 'rmedit']
+    if 'reStartAt' in cmdset:
+        reStartIdx = filternameset.index(cmdset['reStartAt'])
+        filters =  filters[reStartIdx:] 
+
+    cmdset = configRobot.makeParasList(cmdset, ['vcf','sample', 'vcfname'])
+    prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
+    vcfpath = cmdGenerator.checkPath(cmdset.pop('vcfpath'))
+    bampath = cmdGenerator.checkPath(cmdset.pop('bampath'))
+    outputpath = cmdGenerator.checkPath(cmdset.pop('outputpath'))#, create=createpath)
+    tmpoutpath = cmdGenerator.checkPath(cmdset.pop('tmpoutpath'))
+    vcfs, bams = configRobot.popParas(cmdset, ['vcf', 'bam'])
+
+    mem = cmdset['mem']
+    vcfnames = cmdset.pop('vcfname')
+    bamname = cmdset.pop('bamname')
+    outputname = cmdset.pop('output')
+    if 'num_core' not in cmdset: cmdset['num_core'] = 1
+    if int(cmdset['num_core']) > 1: #multiple threads per job
+        sgeopt = ['-pe make ' + cmdset['num_core']]
+    else:
+        sgeopt = []
+
+    nvcf = len(vcfnames)
+    if 'callername' in cmdset:
+        callernames = cmdset.pop('callername')
+        if type(callernames) == type('caller'): callernames = [callernames]*nvcf
+    else:
+        callernames = ['']*nvcf
+
+    jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
+
+    for vcf, bam in zip(vcfs, bams): 
+        for vcfnamepattern, callername in zip(vcfnames, callernames): #one job per group
+            if '*' in vcfnamepattern:
+                f = popen('ls %s'%(vcfpath.format(**cmdset)+vcfnamepattern.format(vcf=vcf)))
+                vcfnamelist = [l.replace(vcfpath.format(**cmdset),'') for l in f.read().split()]
+                f.close()
+            else:
+                vcfnamelist = [vcfnamepattern]
+            for vcfname in vcfnamelist:
+                vcfname = vcfname.replace('.rmhex.rmsk.rmintron.rmhom.txt','')
+                CMDs = []
+                cmdset['callername'] = callername
+                cmdset['vcf'] = vcf
+                cmdset['bam'] = bam
+                cmdset['vcfname'] = vcfname.format( **cmdset)
+                cmdset['inputvcf'] = vcfpath.format( **cmdset) + vcfname.format( **cmdset )
+                cmdset['inputbam'] = bampath.format( **cmdset)  + bamname.format( **cmdset )
+                jobprefix = prefix + outputname.format(**cmdset)
+                sampletmpoutpath = tmpoutpath + '_'.join([prefix, outputname.format(**cmdset), randstr()]) + '/'
+                cmdset['output'] = sampletmpoutpath + outputname.format( **cmdset )
+                if 'toShell' in cmdset.keys():
+                    CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
+                CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
+                if 'reStartAt' in cmdset:
+                    if reStartIdx > 0:
+                        CMDs.append( 'cp %s%s %s'%(outputpath.format(**cmdset), outputnametb[filternameset[reStartIdx-1]].format(output=outputname.format(**cmdset)), sampletmpoutpath) )
+                for subcmd in filters:
+                    CMDs.append( subcmd.format( **cmdset ) )
+                CMDs.append( cmdGenerator.formatCmd( 'mv {sampletmpoutpath}* {outputpath}'.format(sampletmpoutpath=sampletmpoutpath, outputpath=outputpath.format(**cmdset)) )) 
+                CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath.format(**cmdset))) )
+
+                jobmanager.createJob(jobprefix, CMDs, outpath = outputpath.format(**cmdset), outfn = jobprefix, trackcmd=False, sgeopt=sgeopt)
     return jobmanager
 
 
@@ -182,7 +319,7 @@ def GATK_genotyper(cmdset, runmode='test'):
         createpath = True
     
     gatk = '{java} -Djava.io.tmpdir={javatmpdir} -Xmx{mem} -jar {gatkjar} -R {reference} '
-    genotyper = '-T UnifiedGenotyper -U ALLOW_N_CIGAR_READS {input} -o {output}.vcf --dbsnp {DBSNP} -nt {num_core} -nct {num_thread_core} -glm {-glm} -out_mode {-out_mode} -stand_call_conf {-stand_call_conf} -stand_emit_conf {-stand_emit_conf} '
+    genotyper = '-T UnifiedGenotyper -U ALLOW_N_CIGAR_READS {input} -o {output}.vcf --dbsnp {DBSNP} -nt {num_core} -nct {num_thread_core} -glm {-glm} -stand_call_conf {-stand_call_conf} -stand_emit_conf {-stand_emit_conf} '
 
     cmdset = configRobot.makeParasList(cmdset, ['group'])
     prefix, time  = configRobot.popParas(cmdset, ['prefix', 'time'])
@@ -200,6 +337,9 @@ def GATK_genotyper(cmdset, runmode='test'):
     else:
         sgeopt = []
 
+    if 'passon' not in cmdset:
+        cmdset['passon'] = ''
+
     jobmanager = jobFactory.jobManager(mem=mem, time=time, overwrite=cmdset.pop('overwrite'))
 
     for sample, name in zip(groups, groupnames): #one job per group
@@ -213,7 +353,7 @@ def GATK_genotyper(cmdset, runmode='test'):
             CMDs.append( cmdGenerator.formatCmd( cmdset['toShell'] ) )
 
         CMDs.append( cmdGenerator.checkPathOnNode(sampletmpoutpath) )
-        CMDs.append( (gatk+genotyper).format(**cmdset) )
+        CMDs.append( cmdGenerator.formatCmd( (gatk+genotyper).format(**cmdset) + cmdset['passon']) )
         CMDs.append( cmdGenerator.formatCmd( 'mv {sampletmpoutpath}*vcf* {outputpath}'.format(sampletmpoutpath=sampletmpoutpath, outputpath=outputpath) )) 
         CMDs.append( cmdGenerator.formatCmd('mv ./%s%s %s'%(jobprefix, jobmanager.ext, outputpath)) )
 
@@ -678,7 +818,7 @@ def varCall(cmdset, runmode='test'):
 
     #caller sample and output format string
     #flag: options before template or not
-    callertb = {'mutect': [Template(' --input_file:normal $inputpath$normalsample --input_file:tumor $inputpath$tumorsample --out $outputpath$outbase.txt --coverage_file $outputpath$outbase.coverage.wig.txt --vcf $outputpath$outbase.vcf '), False], 'varscan': [Template('samtools mpileup -B -f $reference -q $minq $inputpath$normalsample > $outputpath$normalsample.pileup \n\nsamtools mpileup -B -f $reference -q $minq $inputpath$tumorsample > $outputpath$tumorsample.pileup\n\n$callcmd somatic $outputpath$normalsample.pileup $outputpath$tumorsample.pileup --output-snp $outputpath$outbase.snv --output-indel $outputpath$outbase.indel --output-vcf '), False], 'sniper': [Template(' $inputpath$tumorsample $inputpath$normalsample $outputpath$outbase.vcf '), True], 'virmid': [Template(' -D $inputpath$tumorsample -N $inputpath$tumorsample -w $outputpath -o $outbase '), False], 'strelka':[Template(' --tumor $inputpath$tumorsample --normal $inputpath$normalsample --ref $reference --config $strelka_config --output-dir $outputpath \n\nmake -C $outputpath'), False] }
+    callertb = {'mutect': [Template(' --input_file:normal $inputpath$normalsample --input_file:tumor $inputpath$tumorsample --out $outputpath$outbase.txt --coverage_file $outputpath$outbase.coverage.wig.txt --vcf $outputpath$outbase.vcf '), False], 'varscan': [Template('samtools mpileup -B -f $reference -q $minq $inputpath$normalsample > $outputpath$normalsample.pileup \n\nsamtools mpileup -B -f $reference -q $minq $inputpath$tumorsample > $outputpath$tumorsample.pileup\n\n$callcmd somatic $outputpath$normalsample.pileup $outputpath$tumorsample.pileup --output-snp $outputpath$outbase.snv --output-indel $outputpath$outbase.indel --output-vcf '), False], 'sniper': [Template(' $inputpath$tumorsample $inputpath$normalsample $outputpath$outbase.vcf '), True], 'virmid': [Template(' -D $inputpath$tumorsample -N $inputpath$normalsample -w $outputpath -o $outbase '), False], 'strelka':[Template(' --tumor $inputpath$tumorsample --normal $inputpath$normalsample --ref $reference --config $strelka_config --output-dir $outputpath \n\nmake -C $outputpath'), False] }
 
     cmdset = configRobot.makeParasList(cmdset, ['normalsample', 'tumorsample'])
     cmd, mem, time, prefix = configRobot.popParas(cmdset, ['cmd', 'mem', 'time', 'prefix'])
@@ -752,6 +892,11 @@ def varCall(cmdset, runmode='test'):
             else:
                 CMDs.append( cmdGenerator.formatCmd('echo "TMPJOBDIR=%s"'%(sampletmpoutpath)))
 
+            if callertag == 'virmid':
+                CMDs.append( cmdGenerator.formatCmd('cp %s %s'%(sampleinputpath+tempset['normalsample'], sampletmpoutpath)) ) 
+                CMDs.append( cmdGenerator.formatCmd('cp %s %s'%(sampleinputpath+tempset['tumorsample'], sampletmpoutpath)) )
+                tempset['inputpath'] = sampletmpoutpath
+
             if optionsbeforetemp:
                 varcallcmds = cmdGenerator.formatCmd( callcmd, paraset, template.substitute(tempset) ) 
             else:
@@ -762,6 +907,14 @@ def varCall(cmdset, runmode='test'):
             if callertag == 'strelka':
                 CMDs.append( cmdGenerator.formatCmd( 'mv %sresults/all.somatic.snvs.vcf  %s'%(tempset['outputpath'], sampleoutputpath+tempset['outbase']+'.snv.vcf') )) 
                 CMDs.append( cmdGenerator.formatCmd( 'mv %sresults/all.somatic.indels.vcf  %s'%(tempset['outputpath'], sampleoutputpath+tempset['outbase']+'.indel.vcf') )) 
+            elif callertag == 'virmid':
+                CMDs.append( cmdGenerator.formatCmd( 'mv %s*.report %s'%(tempset['outputpath'], sampleoutputpath) )) 
+                CMDs.append( cmdGenerator.formatCmd( 'mv %s*.germ %s'%(tempset['outputpath'], sampleoutputpath) )) 
+                CMDs.append( cmdGenerator.formatCmd( 'mv %s*.gm %s'%(tempset['outputpath'], sampleoutputpath) )) 
+                CMDs.append( cmdGenerator.formatCmd( 'mv %s*.som %s'%(tempset['outputpath'], sampleoutputpath) )) 
+                CMDs.append( cmdGenerator.formatCmd( 'mv %s*.loh %s'%(tempset['outputpath'], sampleoutputpath) )) 
+                CMDs.append( cmdGenerator.formatCmd('rm -f %s'%(sampletmpoutpath+tempset['normalsample'])) ) 
+                CMDs.append( cmdGenerator.formatCmd('rm -f %s'%(sampletmpoutpath+tempset['tumorsample'])) )
             else:
                 CMDs.append( cmdGenerator.formatCmd( 'mv %s* %s'%(tempset['outputpath']+tempset['outbase'], sampleoutputpath) )) 
                 CMDs.append( cmdGenerator.formatCmd( 'rm -f %s*.pileup'%(tempset['outputpath']) ) )
