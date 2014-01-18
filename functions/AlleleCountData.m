@@ -89,13 +89,97 @@ classdef AlleleCountData < handle
             fclose(f);
             token = textscan(line, '%s');
             ncol = length(token{1});
-            t = parseText(filename, 'nrowname', 0, 'ncolname', 1, 'numericcol', [2 4:ncol]);
-            data.loc = [ numericchrm(t.text(:,strcmp(t.colname, 'chr'))) t.numtext(:,strcmp(t.numcolname, 'pos')) ];
+            t = parseText(filename, 'nrowname', 0, 'ncolname', 1, 'numericcol', [2, 4:ncol-3]);
+            data.locidx = gloc2index( [ numericchrm(t.text(:,strcmp(t.colname, 'chr'))) t.numtext(:,strcmp(t.numcolname, 'pos')) ]);
             data.ref = t.text(:, strcmp(t.colname, 'ref'));
             data.numread = t.numtext(:, strcmp(t.numcolname, '#read'));
             ntbaseidx = ~ismember(t.numcolname, {'pos', '#read'});
             data.ntbase = t.numcolname( ntbaseidx);
             data.count = t.numtext(:, ntbaseidx);
+            indelcol = find(strcmp(t.colname, 'indel'));
+            data.indel = t.text(:, indelcol);
+            data.indelcount = t.text(:, indelcol+1:indelcol+2);
+            [data.indelcount, data.indel] = AlleleCountData.parseIndel(data);
+        end
+        
+        function [count, indel] = indelCount(data, stranded, countmode)
+            % stranded: true or false; def=false; count indel with strands
+            %   or not; stranded only matters if the count table was
+            %   generated with strand information; if false, indels are
+            %   collapsed to non-stranded count before counting
+            % countmode: {'all', 'max'}; 'all' sums up the counts of all
+            %   indels; 'max' returns the maximum count of the indels;
+            %   def='all'
+            %
+            % count: vector of indel counts
+            % indel: only returns values if 'max' is used as countmode,
+            %   indicating which indel has the max count
+            %
+            if nargin < 3, countmode = 'all'; end
+            if nargin < 2, stranded = false; end
+            if strcmpi(countmode, 'all')
+                indel = [];
+                count = cellfun(@sum, data.indelcount);                
+                if ~stranded 
+                    count = sum(count,2);
+                end
+            elseif strcmpi(countmode, 'max')
+                indel = cell(length(data.ref), 1);
+                count = zeros(length(data.ref), 1);
+                indel(:) = {''};
+                if ~stranded && size(data.indelcount,2) > 1
+                    tmp = cellfun(@(x,y) x+y, data.indelcount(:,1), data.indelcount(:,2), 'unif', 0);
+                else
+                    tmp = data.indelcount;
+                end
+                idx = cellfun(@length, data.indel) > 0;
+                [count(idx), midx] = cellfun(@max, tmp);
+                idx = find(idx);
+                indel(idx) = arrayfun(@(i) data.indel{idx(i)}{midx(i)}, 1:length(idx), 'unif', 0);                
+            else
+                error('Unknown count mode %s', countmode);
+            end
+        end
+        
+        function [count, maxAllele] = maxNonRef(data, stranded)
+            if nargin < 2, stranded = false; end
+            if ~stranded
+                data = AlleleCountData.collapseStrand(data);
+            end            
+            colidx = ismember(data.ntbase, {'A','T','C','G','a','t','c','g','*'});
+            ntbase =data.ntbase(colidx);
+            tmp = data.count(:, colidx);
+            [~, refidx] = ismember(data.ref, ntbase);
+            tmp( sub2ind(size(tmp), (1:length(refidx))', refidx) ) = 0;
+            [count, altidx] = max(tmp, [], 2);
+            maxAllele = ntbase( altidx);
+        end
+        
+        function dataNoStrand = collapseStrand(data)
+            dataNoStrand = data;
+            if all(ismember({'A','a'}, data.ntbase))
+                [~, keep] = ismember({'>','A','T','C','G','N'}, data.ntbase);
+                [~, remove] = ismember({'<', 'a','t','c','g','n'}, data.ntbase);
+                dataNoStrand.count(:, keep) = dataNoStrand.count(:, keep) + dataNoStrand.count(:, remove);
+                dataNoStrand.ntbase(remove) = [];
+                dataNoStrand.count(:, remove) = [];
+                dataNoStrand.ref = upper(dataNoStrand.ref);
+            end
+            if size(data.indelcount, 2) > 1
+                dataNoStrand.indelcount = cellfun(@(x,y) x+y, data.indelcount(:,1), data.indelcount(:,2), 'unif', 0);
+            end            
+        end
+        
+        function [count, indel] = parseIndel(data)
+            n = length(data.ref);
+            count = cell(n, size(data.indelcount,2));
+            indel = cell(n, 1);
+            idx = ~strcmp(data.indel, '');
+            indel(~idx) = {''};
+            count(~idx, :) = {0};
+            indel(idx) = regexp(data.indel(idx), ',', 'split');
+            count(idx, :) = cellfun(@(x) str2double_fast(x), ...
+                regexp( data.indelcount(idx, :), ',', 'split'), 'unif', 0);
         end
     end
 end

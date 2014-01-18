@@ -5,7 +5,10 @@ end
 
 do.sample = '138381';
 
-do.plotAF = {1, 1, '%s_AF.%s.png'};
+do.plotTestRnaExp = {1, 1, '%s_TestRnaExp.%s.png'};
+do.plotRnaExp = {0, 1, '%s_RnaExp.%s.png'};
+do.plotRnaAlleleCount = {0, 1, '%s_RnaAlleleCount.%s.png'};
+do.plotAF = {0, 1, '%s_AF.%s.png'};
 do.DnaSom3Caller_Rna2Aligner_Venn = {0, 1, '%s_Dna_Rna_2Alinger.%s.png'}; %
 do.Rna_Aligner_Venn = {0, 1, '%s_Rna_Alinger.%s.png'}; %in DNA/RNA; 
 do.DnaSom3_Rna4Caller_Ratio = {0, 1, '%s_DnaSom_Rna4Caller.%s.png'}; %in DNA/RNA; bar
@@ -87,6 +90,218 @@ exonUtrRnaFilter = ismember(rnavar.locidx, exonUtrLocIdx);
 normalRnaFilter = ~ismember(rnavar.locidx, normalRnaGatk.locidx);
 normalDnaFilter = ~ismember(dnavar.locidx, normalRnaGatk.locidx);
 
+
+if do.plotTestRnaExp{1}    
+    
+    loopCov = [1, 6];    
+    validFilterIdx = setdiff(1:length(dnavar.filterName), 2); % 2 is somatic
+    nfilter = length(validFilterIdx);    
+    %fltIdx = nfilter;        
+    rnaAlleleCount = loadStructData('data/rnaAlleleCount.138381.mat');
+    rnaAlleleCount = rnaAlleleCount.fromfltbam;
+    rnaAlleleCount.DP = sum(rnaAlleleCount.count(:, ~ismember(rnaAlleleCount.ntbase, {'>'})), 2);
+    
+    rnaExp = loadStructData('data/varMappedGene.138381.dna.rna.union.mat');
+    
+    for loopidx = 1:length(loopCov) 
+        for truesetIdx = 1:3 % one file
+            % DNA
+            for fltIdx = 2:nfilter
+                trueflt = VarFilter.TrueSet(dnavar, strcat(para.caller(1:3), para.aligner), ...
+                    para.DnaTrueSet{truesetIdx}, loopCov(loopidx), validFilterIdx(fltIdx), true);
+                D = dnavar.locidx(trueflt);                
+                for rnaSetIdx = truesetIdx %1:4
+                    %RNA
+                    if rnaSetIdx < 4
+                        rnaflt = VarFilter.TrueSet(rnavar, strcat(para.caller(1:3), para.aligner), ...
+                            para.DnaTrueSet{rnaSetIdx}, loopCov(loopidx), validFilterIdx(fltIdx), true);
+                    else
+                        
+                        rnaflt = VarFilter.TrueSet(rnavar, strcat(para.caller([1:3 5]), para.aligner), ...
+                            'any3', loopCov(loopidx), validFilterIdx(fltIdx), true);
+                    end
+                    R = rnavar.locidx( rnaflt );
+                    
+                    U = union(D, R);
+                    inD = ismember(U,D);
+                    inR = ismember(U,R);
+                    [~, uidx] = ismember(U, rnaAlleleCount.locidx);
+                    groupdata = cell(length(U), 1);
+                    groupdata(inD & inR) = {'overlap'};
+                    groupdata(inD & ~inR) = {'only in DNA'};
+                    groupdata(~inD & inR) = {'only in RNA'};
+                    
+                    DP = zeros(length(uidx), 1);
+                    altcount = zeros(length(uidx), 1);
+                    rnaexp = zeros(length(uidx), 1);                    
+                    DP(uidx~=0) = rnaAlleleCount.DP(uidx(uidx~=0));
+                    altcount(uidx~=0) = rnaAlleleCount.altcount(uidx(uidx~=0));
+                    [~, expidx] = ismember(U, rnaExp.locidx);
+                    rnaexp(expidx~=0) = log2( rnaExp.geneNormalizedCountMax( ...
+                        expidx(expidx~=0), strcmp(rnaExp.sample, '138381-2T'))+1);                    
+                    subplot(2,3,fltIdx-1);
+                    dataidx = ~strcmp(groupdata, 'only in DNA');
+                    pval = kruskalwallis_figurecontrol(rnaexp(dataidx), groupdata(dataidx), fig);
+                    title(sprintf('%s, pval=%0.3g', ...
+                        dnavar.filterName{validFilterIdx(fltIdx)}, pval), 'fontsize', 14);                    
+
+                    ylabel( 'log2 gene normalized count', 'fontsize', 14);
+                end
+            end
+            if do.plotTestRnaExp{2}
+                fltfiletag = sprintf('DnaSom%s_Cov%d%s',para.DnaTrueSet{truesetIdx},loopCov(loopidx),para.aligner);
+                saveas(fig, sprintf(['%s/' do.plotTestRnaExp{3}],para.figdir, ...
+                    do.sample,sprintf('%s',fltfiletag)), 'png');
+            end
+        end
+    end
+end
+
+
+if do.plotRnaExp{1}    
+    groupColor = {'only in DNA', para.barcolor(1,:); ...
+        'overlap', para.barcolor(2,:); ...        
+        'only in RNA', para.barcolor(3,:) };
+    loopCov = [1, 6];    
+    validFilterIdx = setdiff(1:length(dnavar.filterName), 2); % 2 is somatic
+    nfilter = length(validFilterIdx);    
+    %fltIdx = nfilter;        
+    rnaAlleleCount = loadStructData('data/rnaAlleleCount.138381.mat');
+    rnaAlleleCount = rnaAlleleCount.fromfltbam;
+    rnaAlleleCount.DP = sum(rnaAlleleCount.count(:, ~ismember(rnaAlleleCount.ntbase, {'>'})), 2);
+    
+    rnaExp = loadStructData('data/varMappedGene.138381.dna.rna.union.mat');
+    
+    for loopidx = 1:length(loopCov) 
+        for truesetIdx = 1:3 % one file
+            % DNA
+            for fltIdx = 2:nfilter
+                trueflt = VarFilter.TrueSet(dnavar, strcat(para.caller(1:3), para.aligner), ...
+                    para.DnaTrueSet{truesetIdx}, loopCov(loopidx), validFilterIdx(fltIdx), true);
+                D = dnavar.locidx(trueflt);                
+                for rnaSetIdx = truesetIdx %1:4
+                    %RNA
+                    if rnaSetIdx < 4
+                        rnaflt = VarFilter.TrueSet(rnavar, strcat(para.caller(1:3), para.aligner), ...
+                            para.DnaTrueSet{rnaSetIdx}, loopCov(loopidx), validFilterIdx(fltIdx), true);
+                    else
+                        
+                        rnaflt = VarFilter.TrueSet(rnavar, strcat(para.caller([1:3 5]), para.aligner), ...
+                            'any3', loopCov(loopidx), validFilterIdx(fltIdx), true);
+                    end
+                    R = rnavar.locidx( rnaflt );
+                    
+                    U = union(D, R);
+                    inD = ismember(U,D);
+                    inR = ismember(U,R);
+                    [~, uidx] = ismember(U, rnaAlleleCount.locidx);
+                    groupdata = cell(length(U), 1);
+                    groupdata(inD & inR) = {'overlap'};
+                    groupdata(inD & ~inR) = {'only in DNA'};
+                    groupdata(~inD & inR) = {'only in RNA'};
+                    
+                    DP = zeros(length(uidx), 1);
+                    altcount = zeros(length(uidx), 1);
+                    rnaexp = zeros(length(uidx), 1);                    
+                    DP(uidx~=0) = rnaAlleleCount.DP(uidx(uidx~=0));
+                    altcount(uidx~=0) = rnaAlleleCount.altcount(uidx(uidx~=0));
+                    [~, expidx] = ismember(U, rnaExp.locidx);
+                    rnaexp(expidx~=0) = log2( rnaExp.geneNormalizedCountMax( ...
+                        expidx(expidx~=0), strcmp(rnaExp.sample, '138381-2T'))+1);                    
+                    subplot(2,3,fltIdx-1);
+                    %h = gscatter(DP, altcount, groupdata);
+                    h = gscatter(rnaexp, altcount, groupdata);
+                    legend('location', 'NW');
+                    for hidx = 1:length(h)
+                        set(h(hidx), 'color', groupColor{strcmp(get(h(hidx),'DisplayName'), groupColor(:,1)),2});
+                    end
+                    title(dnavar.filterName{validFilterIdx(fltIdx)}, 'fontsize', 14);                    
+
+                    xlabel( 'log2 gene normalized count', 'fontsize', 14);
+                    ylabel( '# ALT read', 'fontsize', 14);
+                    
+                end
+            end
+            if do.plotRnaExp{2}
+                fltfiletag = sprintf('DnaSom%s_Cov%d%s',para.DnaTrueSet{truesetIdx},loopCov(loopidx),para.aligner);
+                saveas(fig, sprintf(['%s/' do.plotRnaExp{3}],para.figdir, ...
+                    do.sample,sprintf('%s',fltfiletag)), 'png');
+            end
+        end
+    end
+end
+
+
+if do.plotRnaAlleleCount{1}    
+    groupColor = {'only in DNA', para.barcolor(1,:); ...
+        'overlap', para.barcolor(2,:); ...        
+        'only in RNA', para.barcolor(3,:) };
+    loopCov = [1, 6];    
+    validFilterIdx = setdiff(1:length(dnavar.filterName), 2); % 2 is somatic
+    nfilter = length(validFilterIdx);    
+    %fltIdx = nfilter;        
+    rnaAlleleCount = loadStructData('data/rnaAlleleCount.138381.mat');
+    rnaAlleleCount = rnaAlleleCount.fromfltbam;
+    rnaAlleleCount.DP = sum(rnaAlleleCount.count(:, ~ismember(rnaAlleleCount.ntbase, {'>'})), 2);
+    
+    for loopidx = 1:length(loopCov) 
+        for truesetIdx = 1:3 % one file
+            % DNA
+            for fltIdx = 2:nfilter
+                trueflt = VarFilter.TrueSet(dnavar, strcat(para.caller(1:3), para.aligner), ...
+                    para.DnaTrueSet{truesetIdx}, loopCov(loopidx), validFilterIdx(fltIdx), true);
+                D = dnavar.locidx(trueflt);                
+                for rnaSetIdx = truesetIdx %1:4
+                    %RNA
+                    if rnaSetIdx < 4
+                        rnaflt = VarFilter.TrueSet(rnavar, strcat(para.caller(1:3), para.aligner), ...
+                            para.DnaTrueSet{rnaSetIdx}, loopCov(loopidx), validFilterIdx(fltIdx), true);
+                    else
+                        
+                        rnaflt = VarFilter.TrueSet(rnavar, strcat(para.caller([1:3 5]), para.aligner), ...
+                            'any3', loopCov(loopidx), validFilterIdx(fltIdx), true);
+                    end
+                    R = rnavar.locidx( rnaflt );
+                    
+                    U = union(D, R);
+                    inD = ismember(U,D);
+                    inR = ismember(U,R);
+                    [~, uidx] = ismember(U, rnaAlleleCount.locidx);
+                    groupdata = cell(length(U), 1);
+                    groupdata(inD & inR) = {'overlap'};
+                    groupdata(inD & ~inR) = {'only in DNA'};
+                    groupdata(~inD & inR) = {'only in RNA'};
+                    
+                    DP = zeros(length(uidx), 1);
+                    altcount = zeros(length(uidx), 1);
+                    DP(uidx~=0) = rnaAlleleCount.DP(uidx(uidx~=0));
+                    altcount(uidx~=0) = rnaAlleleCount.altcount(uidx(uidx~=0));
+                    %subplot(4,4, (rnaSetIdx-1)*4+plotidx)
+                    subplot(2,3,fltIdx-1);
+                    h = gscatter(DP, altcount, groupdata);
+                    legend('location', 'NW');
+                    for hidx = 1:length(h)
+                        set(h(hidx), 'color', groupColor{strcmp(get(h(hidx),'DisplayName'), groupColor(:,1)),2});
+                    end
+                    title(dnavar.filterName{validFilterIdx(fltIdx)}, 'fontsize', 14);                    
+%                     if rnaSetIdx < 4
+%                         title(sprintf('RNA %s', para.DnaTrueSet{rnaSetIdx}), 'fontsize', 14);
+%                     else
+%                         title('RNA any3', 'fontsize', 14);
+%                     end
+                    xlabel( '# total read', 'fontsize', 14);
+                    ylabel( '# ALT read', 'fontsize', 14);
+                    
+                end
+            end
+            if do.plotRnaAlleleCount{2}
+                fltfiletag = sprintf('DnaSom%s_Cov%d%s',para.DnaTrueSet{truesetIdx},loopCov(loopidx),para.aligner);
+                saveas(fig, sprintf(['%s/' do.plotRnaAlleleCount{3}],para.figdir, ...
+                    do.sample,sprintf('%s',fltfiletag)), 'png');
+            end
+        end
+    end
+end
 
 if do.plotAF{1}        
     groupColor = {'truely missed in RNA', para.barcolor(1,:); ...
